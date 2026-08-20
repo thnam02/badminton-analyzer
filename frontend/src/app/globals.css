@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0f1410;
+  --bg-elevated: #1a221c;
+  --fg: #e8f0ea;
+  --muted: #9aada0;
+  --accent: #3dd68c;
+  --accent-dim: #2a9a64;
+  --danger: #f07178;
+  --border: #2c3a30;
+}
+
+body {
+  color: var(--fg);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 214, 140, 0.12), transparent),
+    var(--bg);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}

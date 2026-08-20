@@ -1,0 +1,16 @@
+# Core API / video stack
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.0
+numpy>=1.26.0
+opencv-python>=4.8.0
+# Pin torch for reproducible mmcv builds on CPU/macOS
+torch==2.4.1
+torchvision==0.19.1
+openmim>=0.3.9
+setuptools>=69,<81
+mmengine>=0.10.0,<1.0
+# Prefer installing OpenMMLab extras via scripts/bootstrap_mmpose.sh
+# (builds mmcv with ops when possible; installs mmdet/mmpose + shims).
