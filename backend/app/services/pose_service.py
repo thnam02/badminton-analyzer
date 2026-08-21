@@ -5,9 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.config import settings
-from app.cv.draw import draw_skeleton
 from app.cv.mmpose_estimator import MMPoseEstimator
-from app.cv.overlay import draw_metrics_overlay
+from app.cv.overlay import AnnotationRenderer
 from app.processing.angles import compute_angle_sequence
 from app.processing.motion import compute_motion_derivatives
 from app.processing.temporal import preprocess_pose_sequence
@@ -83,23 +82,16 @@ class PoseService:
         pose_by_index = {f.frame_index: f for f in smoothed_sequence.frames}
         angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
         motion_by_index = {f.frame_index: f for f in motion_sequence.frames}
+        renderer = AnnotationRenderer()
 
         def render_frame(frame, frame_index: int, fps: float):
             del fps  # timestamps come from precomputed sequences
-            pose_frame = pose_by_index.get(frame_index)
-            angle_frame = angle_by_index.get(frame_index)
-            motion_frame = motion_by_index.get(frame_index)
-
-            annotated = frame
-            if pose_frame is not None:
-                annotated = draw_skeleton(annotated, pose_frame.keypoints)
-            annotated = draw_metrics_overlay(
-                annotated,
-                pose_frame=pose_frame,
-                angle_frame=angle_frame,
-                motion_frame=motion_frame,
+            return renderer.render(
+                frame,
+                pose_frame=pose_by_index.get(frame_index),
+                angle_frame=angle_by_index.get(frame_index),
+                motion_frame=motion_by_index.get(frame_index),
             )
-            return annotated
 
         process_video_frames(input_path, output_path, render_frame)
 
