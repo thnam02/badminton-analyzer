@@ -7,9 +7,12 @@ from pathlib import Path
 from app.config import settings
 from app.cv.draw import draw_skeleton
 from app.cv.mmpose_estimator import MMPoseEstimator
+from app.processing.angles import compute_angle_sequence
 from app.processing.temporal import preprocess_pose_sequence
+from app.schemas.angles import AngleSequence
 from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.video_service import (
+    angles_json_path_for,
     pose_json_path_for,
     process_video_frames,
     smoothed_pose_json_path_for,
@@ -28,8 +31,8 @@ class PoseService:
 
     def analyze_video(
         self, input_path: Path, output_path: Path
-    ) -> tuple[Path, Path, Path, PoseSequence, PoseSequence]:
-        """Process video; return paths plus raw and smoothed PoseSequence."""
+    ) -> tuple[Path, Path, Path, Path, PoseSequence, PoseSequence, AngleSequence]:
+        """Process video; return paths plus raw/smoothed pose and angle sequences."""
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
 
@@ -53,17 +56,25 @@ class PoseService:
             savgol_window=settings.pose_savgol_window,
             savgol_polyorder=settings.pose_savgol_polyorder,
         )
+        angle_sequence = compute_angle_sequence(
+            smoothed_sequence,
+            confidence_threshold=settings.pose_confidence_threshold,
+        )
 
         raw_json_path = pose_json_path_for(output_path)
         smoothed_json_path = smoothed_pose_json_path_for(output_path)
+        angles_json_path = angles_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
+        angle_sequence.save_json(angles_json_path)
         return (
             output_path,
             raw_json_path,
             smoothed_json_path,
+            angles_json_path,
             raw_sequence,
             smoothed_sequence,
+            angle_sequence,
         )
 
 

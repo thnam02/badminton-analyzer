@@ -36,6 +36,11 @@ def smoothed_pose_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_smoothed.json")
 
 
+def angles_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_angles.json."""
+    return video_path.with_name(f"{video_path.stem}_angles.json")
+
+
 def process_video_frames(
     input_path: Path,
     output_path: Path,
