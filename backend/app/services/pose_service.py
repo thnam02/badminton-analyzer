@@ -7,6 +7,7 @@ from pathlib import Path
 from app.config import settings
 from app.cv.draw import draw_skeleton
 from app.cv.mmpose_estimator import MMPoseEstimator
+from app.cv.overlay import draw_metrics_overlay
 from app.processing.angles import compute_angle_sequence
 from app.processing.motion import compute_motion_derivatives
 from app.processing.temporal import preprocess_pose_sequence
@@ -15,6 +16,7 @@ from app.schemas.motion import MotionSequence
 from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.video_service import (
     angles_json_path_for,
+    iter_video_frames,
     motion_json_path_for,
     pose_json_path_for,
     process_video_frames,
@@ -49,7 +51,7 @@ class PoseService:
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
 
-        def annotate(frame, frame_index: int, fps: float):
+        def collect_frame(frame, frame_index: int, fps: float) -> None:
             keypoints = estimator.predict(frame)
             raw_sequence.append(
                 PoseFrame(
@@ -58,9 +60,8 @@ class PoseService:
                     keypoints=keypoints,
                 )
             )
-            return draw_skeleton(frame, keypoints)
 
-        process_video_frames(input_path, output_path, annotate)
+        iter_video_frames(input_path, collect_frame)
 
         smoothed_sequence = preprocess_pose_sequence(
             raw_sequence,
@@ -78,6 +79,29 @@ class PoseService:
             angle_sequence,
             confidence_threshold=settings.pose_confidence_threshold,
         )
+
+        pose_by_index = {f.frame_index: f for f in smoothed_sequence.frames}
+        angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
+        motion_by_index = {f.frame_index: f for f in motion_sequence.frames}
+
+        def render_frame(frame, frame_index: int, fps: float):
+            del fps  # timestamps come from precomputed sequences
+            pose_frame = pose_by_index.get(frame_index)
+            angle_frame = angle_by_index.get(frame_index)
+            motion_frame = motion_by_index.get(frame_index)
+
+            annotated = frame
+            if pose_frame is not None:
+                annotated = draw_skeleton(annotated, pose_frame.keypoints)
+            annotated = draw_metrics_overlay(
+                annotated,
+                pose_frame=pose_frame,
+                angle_frame=angle_frame,
+                motion_frame=motion_frame,
+            )
+            return annotated
+
+        process_video_frames(input_path, output_path, render_frame)
 
         raw_json_path = pose_json_path_for(output_path)
         smoothed_json_path = smoothed_pose_json_path_for(output_path)
