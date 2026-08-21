@@ -12,12 +12,24 @@ type AnalyzeResponse = {
   output_path: string;
 };
 
+function filenameFromUrl(url: string): string {
+  try {
+    const path = new URL(url, "http://localhost").pathname;
+    const name = path.split("/").pop();
+    return name && name.endsWith(".mp4") ? name : "processed_pose.mp4";
+  } catch {
+    return "processed_pose.mp4";
+  }
+}
+
 export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultFilename, setResultFilename] = useState("processed_pose.mp4");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canAnalyze = useMemo(() => Boolean(file) && !loading, [file, loading]);
@@ -25,6 +37,7 @@ export default function Home() {
   function onFileChange(selected: File | null) {
     setError(null);
     setResultUrl(null);
+    setResultFilename("processed_pose.mp4");
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -69,11 +82,38 @@ export default function Home() {
         throw new Error(detail);
       }
       const data = (await res.json()) as AnalyzeResponse;
-      setResultUrl(`${API_BASE}${data.video_url}`);
+      const url = `${API_BASE}${data.video_url}`;
+      setResultUrl(url);
+      setResultFilename(filenameFromUrl(url));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveProcessedVideo() {
+    if (!resultUrl) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(resultUrl);
+      if (!res.ok) {
+        throw new Error(`Could not download video (${res.status})`);
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = resultFilename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -135,7 +175,17 @@ export default function Home() {
 
       {resultUrl && (
         <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6">
-          <h2 className="text-lg font-medium">Processed video</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-medium">Processed video</h2>
+            <button
+              type="button"
+              onClick={saveProcessedVideo}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-md border border-[var(--border)] bg-transparent px-4 py-2 text-sm font-semibold text-[var(--fg)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving ? "Saving…" : "Save video"}
+            </button>
+          </div>
           <video
             src={resultUrl}
             controls
