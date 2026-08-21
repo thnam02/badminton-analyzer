@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     device: str = "cpu"
     pose_confidence_threshold: float = 0.5
 
+    # Temporal preprocessing (filter → short-gap interpolate → Savitzky–Golay)
+    pose_interp_max_gap: int = 5
+    pose_savgol_window: int = 7
+    pose_savgol_polyorder: int = 2
+
+    # Overlay: EMA for body-anchored labels; warn HUD only below this conf
+    overlay_anchor_smoothing: float = 0.35
+    overlay_low_confidence_warn: float = 0.5
+
     upload_dir: Path = ROOT_DIR / "uploads"
     output_dir: Path = ROOT_DIR / "outputs"
     cors_origins: str = "http://localhost:3000"

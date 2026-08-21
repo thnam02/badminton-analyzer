@@ -13,6 +13,8 @@ import numpy as np
 
 from app.config import settings
 
+# on_frame(frame, frame_index, fps) — used while collecting pose only
+FrameCallback = Callable[[np.ndarray, int, float], None]
 # annotate_frame(frame, frame_index, fps) -> annotated BGR frame
 FrameAnnotator = Callable[[np.ndarray, int, float], np.ndarray]
 
@@ -27,8 +29,46 @@ def new_output_path() -> Path:
 
 
 def pose_json_path_for(video_path: Path) -> Path:
-    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose.json."""
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose.json (raw)."""
     return video_path.with_suffix(".json")
+
+
+def smoothed_pose_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_smoothed.json."""
+    return video_path.with_name(f"{video_path.stem}_smoothed.json")
+
+
+def angles_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_angles.json."""
+    return video_path.with_name(f"{video_path.stem}_angles.json")
+
+
+def motion_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_motion.json."""
+    return video_path.with_name(f"{video_path.stem}_motion.json")
+
+
+def iter_video_frames(
+    input_path: Path,
+    on_frame: FrameCallback,
+) -> float:
+    """Read every frame and invoke ``on_frame``; returns detected FPS."""
+    capture = cv2.VideoCapture(str(input_path))
+    if not capture.isOpened():
+        raise RuntimeError(f"Could not open video: {input_path}")
+
+    fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
+    frame_index = 0
+    try:
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            on_frame(frame, frame_index, float(fps))
+            frame_index += 1
+    finally:
+        capture.release()
+    return float(fps)
 
 
 def process_video_frames(
