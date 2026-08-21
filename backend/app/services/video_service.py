@@ -13,7 +13,8 @@ import numpy as np
 
 from app.config import settings
 
-FrameAnnotator = Callable[[np.ndarray], np.ndarray]
+# annotate_frame(frame, frame_index, fps) -> annotated BGR frame
+FrameAnnotator = Callable[[np.ndarray, int, float], np.ndarray]
 
 
 def new_upload_path(filename: str) -> Path:
@@ -23,6 +24,11 @@ def new_upload_path(filename: str) -> Path:
 
 def new_output_path() -> Path:
     return settings.output_dir / f"{uuid.uuid4().hex}_pose.mp4"
+
+
+def pose_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose.json."""
+    return video_path.with_suffix(".json")
 
 
 def process_video_frames(
@@ -49,15 +55,17 @@ def process_video_frames(
         capture.release()
         raise RuntimeError("Could not open VideoWriter for output")
 
+    frame_index = 0
     try:
         while True:
             ok, frame = capture.read()
             if not ok:
                 break
-            annotated = annotate_frame(frame)
+            annotated = annotate_frame(frame, frame_index, float(fps))
             if annotated.shape[1] != width or annotated.shape[0] != height:
                 annotated = cv2.resize(annotated, (width, height))
             writer.write(annotated)
+            frame_index += 1
     finally:
         capture.release()
         writer.release()

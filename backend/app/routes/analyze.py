@@ -31,7 +31,7 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
             raise HTTPException(status_code=400, detail="Empty upload")
         upload_path.write_bytes(contents)
 
-        pose_service.analyze_video(upload_path, output_path)
+        video_path, json_path = pose_service.analyze_video(upload_path, output_path)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 — surface CV/runtime errors to client
@@ -42,9 +42,12 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
 
     if not output_path.exists():
         raise HTTPException(status_code=500, detail="Processing produced no output")
+    if not json_path.exists():
+        raise HTTPException(status_code=500, detail="Processing produced no pose JSON")
 
-    relative = output_path.name
     return {
-        "output_path": str(output_path),
-        "video_url": f"/outputs/{relative}",
+        "output_path": str(video_path),
+        "video_url": f"/outputs/{video_path.name}",
+        "pose_json_path": str(json_path),
+        "pose_json_url": f"/outputs/{json_path.name}",
     }

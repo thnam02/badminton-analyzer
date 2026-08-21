@@ -7,11 +7,12 @@ import numpy as np
 
 from app.config import settings
 from app.cv.skeleton import SKELETON_CONNECTIONS
+from app.schemas.pose import Keypoint
 
 
 def draw_skeleton(
     frame: np.ndarray,
-    keypoints: dict[str, dict[str, float]],
+    keypoints: dict[str, Keypoint],
     *,
     threshold: float | None = None,
 ) -> np.ndarray:
@@ -23,18 +24,18 @@ def draw_skeleton(
     height, width = frame.shape[:2]
     annotated = frame.copy()
 
-    def to_px(joint: dict[str, float]) -> tuple[int, int] | None:
-        if joint.get("confidence", 0.0) < thr:
+    def to_px(joint: Keypoint) -> tuple[int, int] | None:
+        if joint.confidence < thr:
             return None
-        x = int(round(joint["x"] * width))
-        y = int(round(joint["y"] * height))
+        x = int(round(joint.x * width))
+        y = int(round(joint.y * height))
         return x, y
 
     # Bones first, then joints on top.
     for start_name, end_name in SKELETON_CONNECTIONS:
         start = keypoints.get(start_name)
         end = keypoints.get(end_name)
-        if not start or not end:
+        if start is None or end is None:
             continue
         p1 = to_px(start)
         p2 = to_px(end)
