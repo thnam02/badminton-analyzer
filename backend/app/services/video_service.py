@@ -27,8 +27,13 @@ def new_output_path() -> Path:
 
 
 def pose_json_path_for(video_path: Path) -> Path:
-    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose.json."""
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose.json (raw)."""
     return video_path.with_suffix(".json")
+
+
+def smoothed_pose_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_smoothed.json."""
+    return video_path.with_name(f"{video_path.stem}_smoothed.json")
 
 
 def process_video_frames(

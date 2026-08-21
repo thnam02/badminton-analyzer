@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     device: str = "cpu"
     pose_confidence_threshold: float = 0.5
 
+    # Temporal preprocessing (filter → short-gap interpolate → Savitzky–Golay)
+    pose_interp_max_gap: int = 5
+    pose_savgol_window: int = 7
+    pose_savgol_polyorder: int = 2
+
     upload_dir: Path = ROOT_DIR / "uploads"
     output_dir: Path = ROOT_DIR / "outputs"
     cors_origins: str = "http://localhost:3000"
