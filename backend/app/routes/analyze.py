@@ -28,6 +28,7 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
     raw_json_path: Path | None = None
     smoothed_json_path: Path | None = None
     angles_json_path: Path | None = None
+    motion_json_path: Path | None = None
 
     try:
         contents = await video.read()
@@ -40,9 +41,11 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
             raw_json_path,
             smoothed_json_path,
             angles_json_path,
+            motion_json_path,
             _raw_sequence,
             _smoothed_sequence,
             _angle_sequence,
+            _motion_sequence,
         ) = pose_service.analyze_video(upload_path, output_path)
     except HTTPException:
         raise
@@ -64,6 +67,10 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
         raise HTTPException(
             status_code=500, detail="Processing produced no angles JSON"
         )
+    if motion_json_path is None or not motion_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no motion JSON"
+        )
 
     return {
         "output_path": str(video_path),
@@ -74,4 +81,6 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
         "smoothed_pose_json_url": f"/outputs/{smoothed_json_path.name}",
         "angles_json_path": str(angles_json_path),
         "angles_json_url": f"/outputs/{angles_json_path.name}",
+        "motion_json_path": str(motion_json_path),
+        "motion_json_url": f"/outputs/{motion_json_path.name}",
     }

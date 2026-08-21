@@ -8,11 +8,14 @@ from app.config import settings
 from app.cv.draw import draw_skeleton
 from app.cv.mmpose_estimator import MMPoseEstimator
 from app.processing.angles import compute_angle_sequence
+from app.processing.motion import compute_motion_derivatives
 from app.processing.temporal import preprocess_pose_sequence
 from app.schemas.angles import AngleSequence
+from app.schemas.motion import MotionSequence
 from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.video_service import (
     angles_json_path_for,
+    motion_json_path_for,
     pose_json_path_for,
     process_video_frames,
     smoothed_pose_json_path_for,
@@ -31,8 +34,18 @@ class PoseService:
 
     def analyze_video(
         self, input_path: Path, output_path: Path
-    ) -> tuple[Path, Path, Path, Path, PoseSequence, PoseSequence, AngleSequence]:
-        """Process video; return paths plus raw/smoothed pose and angle sequences."""
+    ) -> tuple[
+        Path,
+        Path,
+        Path,
+        Path,
+        Path,
+        PoseSequence,
+        PoseSequence,
+        AngleSequence,
+        MotionSequence,
+    ]:
+        """Process video; return artifact paths plus pose/angle/motion sequences."""
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
 
@@ -60,21 +73,30 @@ class PoseService:
             smoothed_sequence,
             confidence_threshold=settings.pose_confidence_threshold,
         )
+        motion_sequence = compute_motion_derivatives(
+            smoothed_sequence,
+            angle_sequence,
+            confidence_threshold=settings.pose_confidence_threshold,
+        )
 
         raw_json_path = pose_json_path_for(output_path)
         smoothed_json_path = smoothed_pose_json_path_for(output_path)
         angles_json_path = angles_json_path_for(output_path)
+        motion_json_path = motion_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
+        motion_sequence.save_json(motion_json_path)
         return (
             output_path,
             raw_json_path,
             smoothed_json_path,
             angles_json_path,
+            motion_json_path,
             raw_sequence,
             smoothed_sequence,
             angle_sequence,
+            motion_sequence,
         )
 
 
