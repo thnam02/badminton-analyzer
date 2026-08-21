@@ -1,4 +1,4 @@
-"""MMPose / RTMPose wrapper returning normalized keypoints."""
+"""MMPose / RTMPose wrapper returning internal Keypoint schema."""
 
 from __future__ import annotations
 
@@ -8,10 +8,14 @@ import numpy as np
 
 from app.config import settings
 from app.cv.skeleton import COCO_KEYPOINT_NAMES
+from app.schemas.pose import Keypoint
 
 
 class MMPoseEstimator:
-    """Thin adapter around MMPoseInferencer (RTMPose)."""
+    """Thin adapter around MMPoseInferencer (RTMPose).
+
+    MMPose raw predictions are converted here and must not leak elsewhere.
+    """
 
     def __init__(self) -> None:
         from mmpose.apis import MMPoseInferencer
@@ -28,11 +32,10 @@ class MMPoseEstimator:
         self._inferencer = MMPoseInferencer(**init_kwargs)
         self._threshold = settings.pose_confidence_threshold
 
-    def predict(self, frame: np.ndarray) -> dict[str, dict[str, float]]:
+    def predict(self, frame: np.ndarray) -> dict[str, Keypoint]:
         """Run pose estimation on a BGR frame.
 
-        Returns a mapping of joint name -> {x, y, confidence} with
-        x/y normalized to [0, 1] relative to frame width/height.
+        Returns named Keypoint values with x/y normalized to [0, 1].
         Uses the highest-confidence instance when multiple people appear.
         """
         height, width = frame.shape[:2]
@@ -55,24 +58,26 @@ class MMPoseEstimator:
         if not instances:
             return {}
 
-        best = max(instances, key=lambda inst: float(np.mean(inst.get("keypoint_scores", [0.0]))))
-        keypoints = best.get("keypoints")
+        best = max(
+            instances,
+            key=lambda inst: float(np.mean(inst.get("keypoint_scores", [0.0]))),
+        )
+        raw_keypoints = best.get("keypoints")
         scores = best.get("keypoint_scores")
-        if keypoints is None or scores is None:
+        if raw_keypoints is None or scores is None:
             return {}
 
-        keypoints = np.asarray(keypoints, dtype=np.float32)
+        raw_keypoints = np.asarray(raw_keypoints, dtype=np.float32)
         scores = np.asarray(scores, dtype=np.float32)
 
-        named: dict[str, dict[str, float]] = {}
+        named: dict[str, Keypoint] = {}
         for idx, name in enumerate(COCO_KEYPOINT_NAMES):
-            if idx >= len(keypoints) or idx >= len(scores):
+            if idx >= len(raw_keypoints) or idx >= len(scores):
                 break
-            x_px, y_px = float(keypoints[idx][0]), float(keypoints[idx][1])
-            conf = float(scores[idx])
-            named[name] = {
-                "x": x_px / width,
-                "y": y_px / height,
-                "confidence": conf,
-            }
+            x_px, y_px = float(raw_keypoints[idx][0]), float(raw_keypoints[idx][1])
+            named[name] = Keypoint(
+                x=x_px / width,
+                y=y_px / height,
+                confidence=float(scores[idx]),
+            )
         return named
