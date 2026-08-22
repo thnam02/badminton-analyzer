@@ -11,6 +11,7 @@ from app.cv.layers.joint_metrics_layer import render_joint_metrics_layer
 from app.cv.layers.skeleton_layer import render_skeleton_layer
 from app.schemas.angles import AngleFrame
 from app.schemas.motion import MotionFrame
+from app.schemas.phases import SmashPhase
 from app.schemas.pose import PoseFrame
 
 
@@ -35,11 +36,10 @@ class AnnotationRenderer:
         pose_frame: PoseFrame | None,
         angle_frame: AngleFrame | None,
         motion_frame: MotionFrame | None,
+        phase: SmashPhase | None = None,
     ) -> np.ndarray:
         out = frame.copy()
-        # Layer 1: skeleton
         out = render_skeleton_layer(out, pose_frame)
-        # Layer 2: body-anchored joint metrics
         out = render_joint_metrics_layer(
             out,
             pose_frame=pose_frame,
@@ -47,23 +47,23 @@ class AnnotationRenderer:
             motion_frame=motion_frame,
             smoother=self._smoother,
         )
-        # Layer 3: global HUD
         out = render_hud_layer(
             out,
             pose_frame=pose_frame,
             angle_frame=angle_frame,
             motion_frame=motion_frame,
+            phase=phase,
         )
         return out
 
 
-# Back-compat alias used by older call sites / tests.
 def draw_metrics_overlay(
     frame: np.ndarray,
     *,
     pose_frame: PoseFrame | None,
     angle_frame: AngleFrame | None,
     motion_frame: MotionFrame | None,
+    phase: SmashPhase | None = None,
     renderer: AnnotationRenderer | None = None,
 ) -> np.ndarray:
     active = renderer or AnnotationRenderer()
@@ -72,4 +72,5 @@ def draw_metrics_overlay(
         pose_frame=pose_frame,
         angle_frame=angle_frame,
         motion_frame=motion_frame,
+        phase=phase,
     )

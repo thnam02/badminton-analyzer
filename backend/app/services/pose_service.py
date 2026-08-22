@@ -9,14 +9,17 @@ from app.cv.mmpose_estimator import MMPoseEstimator
 from app.cv.overlay import AnnotationRenderer
 from app.processing.angles import compute_angle_sequence
 from app.processing.motion import compute_motion_derivatives
+from app.processing.phases import detect_smash_phases
 from app.processing.temporal import preprocess_pose_sequence
 from app.schemas.angles import AngleSequence
 from app.schemas.motion import MotionSequence
+from app.schemas.phases import PhaseSequence
 from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.video_service import (
     angles_json_path_for,
     iter_video_frames,
     motion_json_path_for,
+    phases_json_path_for,
     pose_json_path_for,
     process_video_frames,
     smoothed_pose_json_path_for,
@@ -41,12 +44,14 @@ class PoseService:
         Path,
         Path,
         Path,
+        Path,
         PoseSequence,
         PoseSequence,
         AngleSequence,
         MotionSequence,
+        PhaseSequence,
     ]:
-        """Process video; return artifact paths plus pose/angle/motion sequences."""
+        """Process video; return artifact paths plus pose/angle/motion/phase sequences."""
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
 
@@ -78,6 +83,11 @@ class PoseService:
             angle_sequence,
             confidence_threshold=settings.pose_confidence_threshold,
         )
+        phase_sequence = detect_smash_phases(
+            smoothed_sequence,
+            angle_sequence,
+            motion_sequence,
+        )
 
         pose_by_index = {f.frame_index: f for f in smoothed_sequence.frames}
         angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
@@ -85,12 +95,13 @@ class PoseService:
         renderer = AnnotationRenderer()
 
         def render_frame(frame, frame_index: int, fps: float):
-            del fps  # timestamps come from precomputed sequences
+            del fps
             return renderer.render(
                 frame,
                 pose_frame=pose_by_index.get(frame_index),
                 angle_frame=angle_by_index.get(frame_index),
                 motion_frame=motion_by_index.get(frame_index),
+                phase=phase_sequence.phase_at(frame_index),
             )
 
         process_video_frames(input_path, output_path, render_frame)
@@ -99,20 +110,24 @@ class PoseService:
         smoothed_json_path = smoothed_pose_json_path_for(output_path)
         angles_json_path = angles_json_path_for(output_path)
         motion_json_path = motion_json_path_for(output_path)
+        phases_json_path = phases_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
         motion_sequence.save_json(motion_json_path)
+        phase_sequence.save_json(phases_json_path)
         return (
             output_path,
             raw_json_path,
             smoothed_json_path,
             angles_json_path,
             motion_json_path,
+            phases_json_path,
             raw_sequence,
             smoothed_sequence,
             angle_sequence,
             motion_sequence,
+            phase_sequence,
         )
 
 
