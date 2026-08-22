@@ -1,5 +1,6 @@
 from app.schemas.angles import AngleFrame, AngleSequence
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
+from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import Keypoint, PoseFrame, PoseSequence
 
 __all__ = [
@@ -9,6 +10,9 @@ __all__ = [
     "MotionFrame",
     "MotionSequence",
     "PeakStats",
+    "PhaseSegment",
+    "PhaseSequence",
     "PoseFrame",
     "PoseSequence",
+    "SmashPhase",
 ]
