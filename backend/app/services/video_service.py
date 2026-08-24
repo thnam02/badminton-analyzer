@@ -53,6 +53,11 @@ def phases_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_phases.json")
 
 
+def stroke_metrics_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_stroke_metrics.json."""
+    return video_path.with_name(f"{video_path.stem}_stroke_metrics.json")
+
+
 def iter_video_frames(
     input_path: Path,
     on_frame: FrameCallback,

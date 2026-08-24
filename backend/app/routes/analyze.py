@@ -30,6 +30,7 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
     angles_json_path: Path | None = None
     motion_json_path: Path | None = None
     phases_json_path: Path | None = None
+    stroke_metrics_json_path: Path | None = None
 
     try:
         contents = await video.read()
@@ -44,11 +45,13 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
             angles_json_path,
             motion_json_path,
             phases_json_path,
+            stroke_metrics_json_path,
             _raw_sequence,
             _smoothed_sequence,
             _angle_sequence,
             _motion_sequence,
             _phase_sequence,
+            _stroke_metrics,
         ) = pose_service.analyze_video(upload_path, output_path)
     except HTTPException:
         raise
@@ -78,6 +81,10 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
         raise HTTPException(
             status_code=500, detail="Processing produced no phases JSON"
         )
+    if stroke_metrics_json_path is None or not stroke_metrics_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no stroke metrics JSON"
+        )
 
     return {
         "output_path": str(video_path),
@@ -92,4 +99,6 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
         "motion_json_url": f"/outputs/{motion_json_path.name}",
         "phases_json_path": str(phases_json_path),
         "phases_json_url": f"/outputs/{phases_json_path.name}",
+        "stroke_metrics_json_path": str(stroke_metrics_json_path),
+        "stroke_metrics_json_url": f"/outputs/{stroke_metrics_json_path.name}",
     }

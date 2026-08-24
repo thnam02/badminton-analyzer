@@ -10,11 +10,13 @@ from app.cv.overlay import AnnotationRenderer
 from app.processing.angles import compute_angle_sequence
 from app.processing.motion import compute_motion_derivatives
 from app.processing.phases import detect_smash_phases
+from app.processing.stroke_metrics import extract_stroke_metrics
 from app.processing.temporal import preprocess_pose_sequence
 from app.schemas.angles import AngleSequence
 from app.schemas.motion import MotionSequence
 from app.schemas.phases import PhaseSequence
 from app.schemas.pose import PoseFrame, PoseSequence
+from app.schemas.stroke import StrokeMetrics
 from app.services.video_service import (
     angles_json_path_for,
     iter_video_frames,
@@ -23,6 +25,7 @@ from app.services.video_service import (
     pose_json_path_for,
     process_video_frames,
     smoothed_pose_json_path_for,
+    stroke_metrics_json_path_for,
 )
 
 
@@ -45,13 +48,15 @@ class PoseService:
         Path,
         Path,
         Path,
+        Path,
         PoseSequence,
         PoseSequence,
         AngleSequence,
         MotionSequence,
         PhaseSequence,
+        StrokeMetrics,
     ]:
-        """Process video; return artifact paths plus pose/angle/motion/phase sequences."""
+        """Process video; return artifact paths plus pose/angle/motion/phase/stroke sequences."""
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
 
@@ -88,6 +93,11 @@ class PoseService:
             angle_sequence,
             motion_sequence,
         )
+        stroke_metrics = extract_stroke_metrics(
+            phase_sequence,
+            angle_sequence,
+            motion_sequence,
+        )
 
         pose_by_index = {f.frame_index: f for f in smoothed_sequence.frames}
         angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
@@ -111,11 +121,13 @@ class PoseService:
         angles_json_path = angles_json_path_for(output_path)
         motion_json_path = motion_json_path_for(output_path)
         phases_json_path = phases_json_path_for(output_path)
+        stroke_metrics_json_path = stroke_metrics_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
         motion_sequence.save_json(motion_json_path)
         phase_sequence.save_json(phases_json_path)
+        stroke_metrics.save_json(stroke_metrics_json_path)
         return (
             output_path,
             raw_json_path,
@@ -123,11 +135,13 @@ class PoseService:
             angles_json_path,
             motion_json_path,
             phases_json_path,
+            stroke_metrics_json_path,
             raw_sequence,
             smoothed_sequence,
             angle_sequence,
             motion_sequence,
             phase_sequence,
+            stroke_metrics,
         )
 
 
