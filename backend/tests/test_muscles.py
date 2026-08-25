@@ -174,29 +174,15 @@ def test_debug_session_writes_artifacts(tmp_path: Path) -> None:
     assert (tmp_path / "frame_00003_diagnostics.json").exists()
 
 
-def test_overlay_muscle_layer_before_skeleton() -> None:
+def test_overlay_no_longer_requires_muscle_renderer() -> None:
     frame = np.zeros((240, 320, 3), dtype=np.uint8)
     pose = _full_pose()
-    muscle_renderer = MuscleOverlayRenderer(inferencer=_FakeInferencer(), fail_loud=True)
-    with_muscles = AnnotationRenderer(
-        anchor_smoothing=1.0,
-        muscle_overlay=True,
-        muscle_renderer=muscle_renderer,
-    ).render(
+    out = AnnotationRenderer(anchor_smoothing=1.0).render(
         frame,
         pose_frame=pose,
         angle_frame=None,
         motion_frame=None,
         phase=SmashPhase.ACCELERATION,
     )
-    without_muscles = AnnotationRenderer(
-        anchor_smoothing=1.0,
-        muscle_overlay=False,
-    ).render(
-        frame,
-        pose_frame=pose,
-        angle_frame=None,
-        motion_frame=None,
-        phase=SmashPhase.ACCELERATION,
-    )
-    assert not np.array_equal(with_muscles, without_muscles)
+    assert out.shape == frame.shape
+    assert not np.array_equal(out, frame)

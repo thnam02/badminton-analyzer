@@ -67,31 +67,34 @@ POSE_CONFIDENCE_THRESHOLD=0.5
 
 If `MMPOSE_CONFIG` / `MMPOSE_CHECKPOINT` are empty, the backend uses the MMPose alias `human` (RTMPose-m; weights download on first run).
 
-### DensePose muscle overlay (optional)
+### 3D mesh feasibility (WHAM)
 
-The muscle involvement overlay uses Detectron2 DensePose for body-surface clipping. Install after MMPose bootstrap:
+DensePose muscle overlay is disabled. Analyze can emit a separate mesh debug video
+`outputs/{uuid}_mesh.mp4` with a semi-transparent SMPL mesh over the original clip.
 
 ```bash
 cd backend
-./scripts/bootstrap_densepose.sh
+./scripts/bootstrap_wham.sh   # clones WHAM; SMPL models still need registration
 ```
 
-DensePose weights download on first analyze. Configure in `.env`:
+`.env`:
 
 ```text
-DENSEPOSE_CONFIG=          # optional; defaults to bundled yaml
-DENSEPOSE_WEIGHTS=         # optional; defaults to Facebook model URL
-DENSEPOSE_SCORE_THRESHOLD=0.5
-OVERLAY_MUSCLE_SMOOTHING=0.4
+MESH_ENABLED=true
+MESH_BACKEND=wham
+MESH_WHAM_ROOT=/path/to/vendor/WHAM
+MESH_SMPL_MODEL_PATH=          # optional if models are outside WHAM
+MESH_OVERLAY_ALPHA=0.45
+MESH_SHOW_REPROJECTION=true
+MESH_FOCAL_LENGTH=0            # 0 → CLIFF focal sqrt(w²+h²)
 ```
 
-Debug muscle overlay (saves artifacts under `outputs/{id}_pose_densepose_debug/`):
-
-```text
-DENSEPOSE_DEBUG=true
-DENSEPOSE_DEBUG_SHOW_PARTS=true   # solid body-part colors on output video
-DENSEPOSE_FAIL_LOUD=true          # return 500 instead of silent skip
-```
+`MESH_BACKEND=wham` is required for this milestone. On macOS the app runs WHAM
+using **RTMPose tracks** (skips ViTPose/YOLO, which conflict with MMPose). Soft
+deps are in `backend/requirements.txt`. After cloning WHAM and fetching
+checkpoints/body models, restart uvicorn and analyze with the mesh checkbox on.
+CPU feature extraction is slow on short clips first — expect several minutes.
+No SMPLer-X, muscle meshes, or activation yet.
 
 ## 4. Run FastAPI
 

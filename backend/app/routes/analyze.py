@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
+from app.services.mesh_jobs import read_status
 from app.services.pose_service import pose_service
 from app.services.video_service import new_output_path, new_upload_path
 
@@ -13,10 +14,30 @@ router = APIRouter(tags=["analyze"])
 ALLOWED_EXTENSIONS = {".mp4", ".mov"}
 
 
+@router.get("/mesh-status/{job_id}")
+def mesh_status(job_id: str) -> dict:
+    """Poll background WHAM mesh job started by /analyze?mesh_overlay=true."""
+    status = read_status(job_id)
+    if status is None:
+        # Fallback: mesh already on disk from an older sync run.
+        mesh_video = settings.output_dir / f"{job_id}_mesh.mp4"
+        if mesh_video.is_file():
+            return {
+                "job_id": job_id,
+                "status": "done",
+                "mesh_video_url": f"/outputs/{mesh_video.name}",
+                "mesh_json_url": f"/outputs/{job_id}_mesh.json",
+                "error": None,
+            }
+        raise HTTPException(status_code=404, detail=f"Unknown mesh job '{job_id}'")
+    return status
+
+
 @router.post("/analyze")
 async def analyze(
     video: UploadFile = File(...),
     muscle_overlay: bool | None = Query(default=None),
+    mesh_overlay: bool | None = Query(default=None),
 ) -> dict[str, str]:
     filename = video.filename or "upload.mp4"
     suffix = Path(filename).suffix.lower()
@@ -36,11 +57,13 @@ async def analyze(
     phases_json_path: Path | None = None
     metrics_json_path: Path | None = None
     technique_json_path: Path | None = None
-    show_muscles = (
-        settings.overlay_muscle_enabled
-        if muscle_overlay is None
-        else muscle_overlay
-    )
+    mesh_video_path: Path | None = None
+    mesh_json_path: Path | None = None
+    mesh_status: dict | None = None
+    # DensePose muscle path disabled; query param ignored.
+    show_muscles = False
+    del muscle_overlay
+    run_mesh = settings.mesh_enabled if mesh_overlay is None else mesh_overlay
 
     try:
         contents = await video.read()
@@ -57,6 +80,9 @@ async def analyze(
             phases_json_path,
             metrics_json_path,
             technique_json_path,
+            mesh_video_path,
+            mesh_json_path,
+            mesh_status,
             _raw_sequence,
             _smoothed_sequence,
             _angle_sequence,
@@ -67,16 +93,19 @@ async def analyze(
         ) = pose_service.analyze_video(
             upload_path,
             output_path,
-            muscle_overlay=show_muscles,
+            muscle_overlay=False,
+            mesh_overlay=run_mesh,
         )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
         detail = str(exc)
-        if show_muscles and "DensePose" in detail:
+        if run_mesh and ("WHAM" in detail or "Mesh" in detail or "mesh" in detail):
             detail = (
-                f"{detail} — Install DensePose with "
-                "backend/scripts/bootstrap_densepose.sh or disable muscle overlay."
+                f"{detail} — WHAM needs checkpoints under vendor/WHAM/checkpoints "
+                "and body models under vendor/WHAM/dataset/body_models. "
+                "Soft deps: pip install -r requirements.txt. "
+                "Analyze with mesh enabled reuses RTMPose tracks (no ViTPose)."
             )
         raise HTTPException(status_code=500, detail=detail) from exc
     finally:
@@ -112,7 +141,7 @@ async def analyze(
             status_code=500, detail="Processing produced no technique JSON"
         )
 
-    return {
+    payload: dict[str, str] = {
         "output_path": str(video_path),
         "video_url": f"/outputs/{video_path.name}",
         "pose_json_path": str(raw_json_path),
@@ -130,4 +159,21 @@ async def analyze(
         "technique_json_path": str(technique_json_path),
         "technique_json_url": f"/outputs/{technique_json_path.name}",
         "muscle_overlay": str(show_muscles).lower(),
+        "mesh_overlay": str(run_mesh).lower(),
     }
+    if mesh_status is not None:
+        payload["mesh_status"] = str(mesh_status.get("status", "pending"))
+        payload["mesh_job_id"] = str(mesh_status.get("job_id", ""))
+        payload["mesh_status_url"] = f"/mesh-status/{mesh_status.get('job_id', '')}"
+        if mesh_status.get("mesh_video_url"):
+            payload["mesh_video_url"] = str(mesh_status["mesh_video_url"])
+        if mesh_status.get("mesh_json_url"):
+            payload["mesh_json_url"] = str(mesh_status["mesh_json_url"])
+    elif mesh_video_path is not None:
+        payload["mesh_video_path"] = str(mesh_video_path)
+        payload["mesh_video_url"] = f"/outputs/{mesh_video_path.name}"
+        payload["mesh_status"] = "done"
+    if mesh_json_path is not None and "mesh_json_url" not in payload:
+        payload["mesh_json_path"] = str(mesh_json_path)
+        payload["mesh_json_url"] = f"/outputs/{mesh_json_path.name}"
+    return payload

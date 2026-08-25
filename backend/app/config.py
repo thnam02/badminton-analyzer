@@ -25,11 +25,12 @@ class Settings(BaseSettings):
     # Overlay: EMA for body-anchored labels; warn HUD only below this conf
     overlay_anchor_smoothing: float = 0.35
     overlay_low_confidence_warn: float = 0.5
-    overlay_muscle_enabled: bool = True
+    # DensePose muscle overlay retired for mesh feasibility milestone
+    overlay_muscle_enabled: bool = False
     overlay_muscle_base_alpha: float = 0.55
     overlay_muscle_smoothing: float = 0.4
 
-    # DensePose (Detectron2) for body-surface muscle overlay
+    # DensePose (kept for optional revive; not used by default overlay)
     densepose_config: str = ""
     densepose_weights: str = ""
     densepose_score_threshold: float = 0.5
@@ -39,6 +40,16 @@ class Settings(BaseSettings):
     densepose_debug: bool = False
     densepose_debug_frames: int = 5
     densepose_debug_show_parts: bool = False
+
+    # 3D mesh feasibility — WHAM only for this milestone
+    mesh_enabled: bool = True
+    mesh_backend: str = "wham"
+    mesh_wham_root: str = ""
+    mesh_smplerx_root: str = ""
+    mesh_smpl_model_path: str = ""
+    mesh_overlay_alpha: float = 0.45
+    mesh_show_reprojection: bool = True
+    mesh_focal_length: float = 0.0  # 0 → CLIFF focal sqrt(w^2+h^2)
 
     # Technique rule thresholds (V1 smash)
     technique_min_contact_elbow_angle_deg: float = 150.0

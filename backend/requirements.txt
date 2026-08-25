@@ -16,3 +16,13 @@ mmengine>=0.10.0,<1.0
 # Prefer installing OpenMMLab extras via scripts/bootstrap_mmpose.sh
 # (builds mmcv with ops when possible; installs mmdet/mmpose + shims).
 pytest>=8.0.0
+
+# WHAM mesh recovery soft deps (RTMPose-track path; no ViTPose required)
+joblib>=1.3.0
+yacs>=0.1.8
+smplx>=0.1.28
+loguru>=0.7.0
+progress>=1.6
+einops>=0.7.0
+timm==0.4.9
+scikit-image>=0.22.0

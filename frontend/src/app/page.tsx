@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
@@ -10,6 +10,17 @@ const ACCEPTED = ".mp4,.mov,video/mp4,video/quicktime";
 type AnalyzeResponse = {
   video_url: string;
   output_path: string;
+  mesh_video_url?: string;
+  mesh_status?: string;
+  mesh_job_id?: string;
+  mesh_status_url?: string;
+};
+
+type MeshStatusResponse = {
+  job_id: string;
+  status: string;
+  mesh_video_url?: string;
+  error?: string | null;
 };
 
 function filenameFromUrl(url: string): string {
@@ -30,15 +41,49 @@ export default function Home() {
   const [resultFilename, setResultFilename] = useState("processed_pose.mp4");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [muscleOverlay, setMuscleOverlay] = useState(true);
+  const [meshOverlay, setMeshOverlay] = useState(true);
+  const [resultMeshUrl, setResultMeshUrl] = useState<string | null>(null);
+  const [meshStatus, setMeshStatus] = useState<string | null>(null);
+  const [meshJobId, setMeshJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const canAnalyze = useMemo(() => Boolean(file) && !loading, [file, loading]);
+
+  useEffect(() => {
+    if (!meshJobId || meshStatus === "done" || meshStatus === "error") return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/mesh-status/${meshJobId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as MeshStatusResponse;
+        if (cancelled) return;
+        setMeshStatus(data.status);
+        if (data.status === "done" && data.mesh_video_url) {
+          setResultMeshUrl(`${API_BASE}${data.mesh_video_url}?t=${Date.now()}`);
+        }
+        if (data.status === "error") {
+          setError(data.error || "Mesh generation failed");
+        }
+      } catch {
+        /* keep polling */
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [meshJobId, meshStatus]);
 
   function onFileChange(selected: File | null) {
     setError(null);
     setResultUrl(null);
     setResultFilename("processed_pose.mp4");
+    setResultMeshUrl(null);
+    setMeshStatus(null);
+    setMeshJobId(null);
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -63,16 +108,19 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResultUrl(null);
+    setResultMeshUrl(null);
+    setMeshStatus(null);
+    setMeshJobId(null);
 
     const form = new FormData();
     form.append("video", file);
 
     try {
       const res = await fetch(
-        `${API_BASE}/analyze?muscle_overlay=${muscleOverlay ? "true" : "false"}`,
+        `${API_BASE}/analyze?mesh_overlay=${meshOverlay ? "true" : "false"}`,
         {
-        method: "POST",
-        body: form,
+          method: "POST",
+          body: form,
         },
       );
       if (!res.ok) {
@@ -89,6 +137,13 @@ export default function Home() {
       const url = `${API_BASE}${data.video_url}`;
       setResultUrl(url);
       setResultFilename(filenameFromUrl(url));
+      if (data.mesh_job_id) {
+        setMeshJobId(data.mesh_job_id);
+        setMeshStatus(data.mesh_status || "pending");
+      } else if (data.mesh_video_url) {
+        setResultMeshUrl(`${API_BASE}${data.mesh_video_url}`);
+        setMeshStatus("done");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -120,6 +175,9 @@ export default function Home() {
       setSaving(false);
     }
   }
+
+  const meshPending =
+    meshStatus === "pending" || meshStatus === "running";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 px-6 py-12">
@@ -158,14 +216,14 @@ export default function Home() {
         <label className="flex cursor-pointer items-center gap-3 text-sm text-[var(--fg)]">
           <input
             type="checkbox"
-            checked={muscleOverlay}
-            onChange={(e) => setMuscleOverlay(e.target.checked)}
+            checked={meshOverlay}
+            onChange={(e) => setMeshOverlay(e.target.checked)}
             className="h-4 w-4 rounded border-[var(--border)] accent-[var(--accent)]"
           />
           <span>
-            Show muscle involvement overlay{" "}
+            Generate 3D mesh debug video{" "}
             <span className="text-[var(--muted)]">
-              (phase-based demo, not EMG)
+              (WHAM runs in the background after pose; CPU can take several minutes)
             </span>
           </span>
         </label>
@@ -181,7 +239,8 @@ export default function Home() {
 
         {loading && (
           <p className="text-sm text-[var(--muted)]">
-            Running pose estimation on every frame. This can take a while on CPU.
+            Running pose estimation on every frame. Mesh (if enabled) starts
+            afterward in the background.
           </p>
         )}
 
@@ -211,6 +270,31 @@ export default function Home() {
             autoPlay
             className="w-full rounded-lg border border-[var(--border)] bg-black"
           />
+        </section>
+      )}
+
+      {(meshPending || resultMeshUrl) && (
+        <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6">
+          <h2 className="text-lg font-medium">3D mesh debug video</h2>
+          {meshPending && (
+            <p className="text-sm text-[var(--muted)]">
+              WHAM mesh is still running on CPU ({meshStatus})… this page will
+              update when the mesh video is ready (often several minutes).
+            </p>
+          )}
+          {resultMeshUrl && (
+            <>
+              <p className="text-sm text-[var(--muted)]">
+                Semi-transparent body mesh over the player (feasibility check —
+                no muscles yet).
+              </p>
+              <video
+                src={resultMeshUrl}
+                controls
+                className="w-full rounded-lg border border-[var(--border)] bg-black"
+              />
+            </>
+          )}
         </section>
       )}
     </main>

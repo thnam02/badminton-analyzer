@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.config import settings
-from app.cv.densepose.debug import DensePoseDebugSession
 from app.cv.mmpose_estimator import MMPoseEstimator
 from app.cv.overlay import AnnotationRenderer
 from app.processing.angles import compute_angle_sequence
@@ -50,23 +49,14 @@ class PoseService:
         output_path: Path,
         *,
         muscle_overlay: bool | None = None,
-    ) -> tuple[
-        Path,
-        Path,
-        Path,
-        Path,
-        Path,
-        Path,
-        Path,
-        PoseSequence,
-        PoseSequence,
-        AngleSequence,
-        MotionSequence,
-        PhaseSequence,
-        StrokeMetrics,
-        TechniqueEvaluation,
-    ]:
-        """Process video; return artifact paths plus analysis sequences."""
+        mesh_overlay: bool | None = None,
+    ) -> tuple:
+        """Process video; return artifact paths plus analysis sequences.
+
+        DensePose muscle overlay is disabled for this milestone. When mesh recovery
+        is enabled, also writes ``{uuid}_mesh.mp4``.
+        """
+        del muscle_overlay  # retired path — ignored
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
 
@@ -118,25 +108,7 @@ class PoseService:
         angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
         motion_by_index = {f.frame_index: f for f in motion_sequence.frames}
 
-        show_muscles = (
-            settings.overlay_muscle_enabled
-            if muscle_overlay is None
-            else muscle_overlay
-        )
-        debug_session: DensePoseDebugSession | None = None
-        if show_muscles and settings.densepose_debug:
-            debug_dir = output_path.with_name(f"{output_path.stem}_densepose_debug")
-            debug_session = DensePoseDebugSession(
-                output_dir=debug_dir,
-                max_frames=settings.densepose_debug_frames,
-            )
-
-        renderer = AnnotationRenderer(
-            muscle_overlay=show_muscles,
-            debug_session=debug_session,
-        )
-        if show_muscles:
-            renderer.ensure_muscle_overlay_ready()
+        renderer = AnnotationRenderer(muscle_overlay=False)
 
         def render_frame(frame, frame_index: int, fps: float):
             del fps
@@ -150,6 +122,24 @@ class PoseService:
             )
 
         process_video_frames(input_path, output_path, render_frame)
+
+        mesh_video_path: Path | None = None
+        mesh_json_path: Path | None = None
+        mesh_status: dict | None = None
+        run_mesh = settings.mesh_enabled if mesh_overlay is None else mesh_overlay
+        if run_mesh:
+            # WHAM on CPU can take many minutes; run async so /analyze does not
+            # hold the HTTP connection open (browser "Failed to fetch").
+            from app.services.mesh_jobs import start_mesh_job
+            from app.services.video_service import mesh_json_path_for, mesh_video_path_for
+
+            mesh_video_path = mesh_video_path_for(output_path)
+            mesh_json_path = mesh_json_path_for(output_path)
+            mesh_status = start_mesh_job(
+                video_path=input_path,
+                pose_output=output_path,
+                pose_sequence=smoothed_sequence,
+            )
 
         raw_json_path = pose_json_path_for(output_path)
         smoothed_json_path = smoothed_pose_json_path_for(output_path)
@@ -174,6 +164,9 @@ class PoseService:
             phases_json_path,
             metrics_json_path,
             technique_json_path,
+            mesh_video_path,
+            mesh_json_path,
+            mesh_status,
             raw_sequence,
             smoothed_sequence,
             angle_sequence,
