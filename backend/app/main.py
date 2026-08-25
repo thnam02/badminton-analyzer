@@ -1,3 +1,8 @@
+# Pillow shim before any Detectron2 / DensePose imports (Image.LINEAR removed in Pillow 10+).
+from app.cv.densepose.compat import apply_pillow_shims
+
+apply_pillow_shims()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

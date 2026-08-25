@@ -9,7 +9,13 @@ from app.schemas.stroke import (
     FollowThroughMetrics,
     PhaseWindow,
     PreparationMetrics,
-    StrokeMetrics,
+)
+from app.schemas.stroke_metrics import StrokeMetrics
+from app.schemas.technique import (
+    IssueSeverity,
+    ReferenceRange,
+    TechniqueEvaluation,
+    TechniqueIssue,
 )
 
 __all__ = [
@@ -19,6 +25,7 @@ __all__ = [
     "BackswingMetrics",
     "EstimatedContactMetrics",
     "FollowThroughMetrics",
+    "IssueSeverity",
     "Keypoint",
     "MotionFrame",
     "MotionSequence",
@@ -29,6 +36,9 @@ __all__ = [
     "PoseFrame",
     "PoseSequence",
     "PreparationMetrics",
+    "ReferenceRange",
     "SmashPhase",
     "StrokeMetrics",
+    "TechniqueEvaluation",
+    "TechniqueIssue",
 ]

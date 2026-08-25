@@ -1,4 +1,4 @@
-"""Compose skeleton, joint-metric, and HUD layers. No biomechanics recalculation."""
+"""Compose skeleton, joint-metric, and HUD layers. DensePose muscle path disabled."""
 
 from __future__ import annotations
 
@@ -16,18 +16,29 @@ from app.schemas.pose import PoseFrame
 
 
 class AnnotationRenderer:
-    """Stateful frame compositor (anchor EMA lives across frames)."""
+    """Stateful frame compositor (anchor EMA across frames)."""
 
-    def __init__(self, *, anchor_smoothing: float | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        anchor_smoothing: float | None = None,
+        muscle_overlay: bool | None = None,
+    ) -> None:
         alpha = (
             settings.overlay_anchor_smoothing
             if anchor_smoothing is None
             else anchor_smoothing
         )
         self._smoother = AnchorSmoother(alpha=alpha)
+        # DensePose muscle overlay is retired for the mesh feasibility milestone.
+        self._muscle_overlay = False if muscle_overlay is None else bool(muscle_overlay)
 
     def reset(self) -> None:
         self._smoother.reset()
+
+    @property
+    def muscle_overlay_enabled(self) -> bool:
+        return self._muscle_overlay
 
     def render(
         self,
@@ -37,8 +48,12 @@ class AnnotationRenderer:
         angle_frame: AngleFrame | None,
         motion_frame: MotionFrame | None,
         phase: SmashPhase | None = None,
+        frame_index: int = 0,
+        muscle_overlay: bool | None = None,
     ) -> np.ndarray:
+        del frame_index, muscle_overlay
         out = frame.copy()
+        # Intentionally skip DensePose / muscle layer.
         out = render_skeleton_layer(out, pose_frame)
         out = render_joint_metrics_layer(
             out,
@@ -64,8 +79,11 @@ def draw_metrics_overlay(
     angle_frame: AngleFrame | None,
     motion_frame: MotionFrame | None,
     phase: SmashPhase | None = None,
+    frame_index: int = 0,
+    muscle_overlay: bool | None = None,
     renderer: AnnotationRenderer | None = None,
 ) -> np.ndarray:
+    del muscle_overlay
     active = renderer or AnnotationRenderer()
     return active.render(
         frame,
@@ -73,4 +91,5 @@ def draw_metrics_overlay(
         angle_frame=angle_frame,
         motion_frame=motion_frame,
         phase=phase,
+        frame_index=frame_index,
     )

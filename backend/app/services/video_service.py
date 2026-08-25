@@ -54,8 +54,33 @@ def phases_json_path_for(video_path: Path) -> Path:
 
 
 def stroke_metrics_json_path_for(video_path: Path) -> Path:
-    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_stroke_metrics.json."""
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_stroke_metrics.json."""
     return video_path.with_name(f"{video_path.stem}_stroke_metrics.json")
+
+
+def technique_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_technique.json."""
+    return video_path.with_name(f"{video_path.stem}_technique.json")
+
+
+def mesh_video_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_mesh.mp4."""
+    stem = video_path.stem
+    if stem.endswith("_pose"):
+        base = stem[: -len("_pose")]
+    else:
+        base = stem
+    return video_path.with_name(f"{base}_mesh.mp4")
+
+
+def mesh_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_mesh.json."""
+    stem = video_path.stem
+    if stem.endswith("_pose"):
+        base = stem[: -len("_pose")]
+    else:
+        base = stem
+    return video_path.with_name(f"{base}_mesh.json")
 
 
 def iter_video_frames(
