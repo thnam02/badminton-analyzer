@@ -14,12 +14,7 @@ from app.processing.stroke_metrics import compute_stroke_metrics
 from app.processing.technique import evaluate_technique
 from app.processing.technique_config import technique_rule_config_from_settings
 from app.processing.temporal import preprocess_pose_sequence
-from app.schemas.angles import AngleSequence
-from app.schemas.motion import MotionSequence
-from app.schemas.phases import PhaseSequence
 from app.schemas.pose import PoseFrame, PoseSequence
-from app.schemas.stroke_metrics import StrokeMetrics
-from app.schemas.technique import TechniqueEvaluation
 from app.services.video_service import (
     angles_json_path_for,
     iter_video_frames,

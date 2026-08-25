@@ -59,7 +59,7 @@ async def analyze(
     technique_json_path: Path | None = None
     mesh_video_path: Path | None = None
     mesh_json_path: Path | None = None
-    mesh_status: dict | None = None
+    mesh_status_payload: dict | None = None
     # DensePose muscle path disabled; query param ignored.
     show_muscles = False
     del muscle_overlay
@@ -82,7 +82,7 @@ async def analyze(
             technique_json_path,
             mesh_video_path,
             mesh_json_path,
-            mesh_status,
+            mesh_status_payload,
             _raw_sequence,
             _smoothed_sequence,
             _angle_sequence,
@@ -161,14 +161,14 @@ async def analyze(
         "muscle_overlay": str(show_muscles).lower(),
         "mesh_overlay": str(run_mesh).lower(),
     }
-    if mesh_status is not None:
-        payload["mesh_status"] = str(mesh_status.get("status", "pending"))
-        payload["mesh_job_id"] = str(mesh_status.get("job_id", ""))
-        payload["mesh_status_url"] = f"/mesh-status/{mesh_status.get('job_id', '')}"
-        if mesh_status.get("mesh_video_url"):
-            payload["mesh_video_url"] = str(mesh_status["mesh_video_url"])
-        if mesh_status.get("mesh_json_url"):
-            payload["mesh_json_url"] = str(mesh_status["mesh_json_url"])
+    if mesh_status_payload is not None:
+        payload["mesh_status"] = str(mesh_status_payload.get("status", "pending"))
+        payload["mesh_job_id"] = str(mesh_status_payload.get("job_id", ""))
+        payload["mesh_status_url"] = f"/mesh-status/{mesh_status_payload.get('job_id', '')}"
+        if mesh_status_payload.get("mesh_video_url"):
+            payload["mesh_video_url"] = str(mesh_status_payload["mesh_video_url"])
+        if mesh_status_payload.get("mesh_json_url"):
+            payload["mesh_json_url"] = str(mesh_status_payload["mesh_json_url"])
     elif mesh_video_path is not None:
         payload["mesh_video_path"] = str(mesh_video_path)
         payload["mesh_video_url"] = f"/outputs/{mesh_video_path.name}"
