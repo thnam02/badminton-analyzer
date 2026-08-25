@@ -98,6 +98,9 @@ def test_stroke_metrics_populated_at_contact() -> None:
     assert metrics.contact_elbow_angle_deg is not None
     assert metrics.peak_wrist_speed is not None
     assert metrics.knee_contribution_deg is not None
+    payload = metrics.to_dict()
+    assert payload["video"] == "smash.mp4"
+    assert "contact_elbow_angle_deg" in payload
 
 
 def test_good_technique_produces_few_or_no_issues() -> None:

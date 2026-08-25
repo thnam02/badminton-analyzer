@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     # Overlay: EMA for body-anchored labels; warn HUD only below this conf
     overlay_anchor_smoothing: float = 0.35
     overlay_low_confidence_warn: float = 0.5
+    overlay_muscle_enabled: bool = True
+    overlay_muscle_base_alpha: float = 0.55
+    overlay_muscle_smoothing: float = 0.4
+
+    # DensePose (Detectron2) for body-surface muscle overlay
+    densepose_config: str = ""
+    densepose_weights: str = ""
+    densepose_score_threshold: float = 0.5
+    densepose_min_person_pixels: int = 400
+    densepose_crop_padding: float = 0.20
+    densepose_fail_loud: bool = True
+    densepose_debug: bool = False
+    densepose_debug_frames: int = 5
+    densepose_debug_show_parts: bool = False
 
     # Technique rule thresholds (V1 smash)
     technique_min_contact_elbow_angle_deg: float = 150.0

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +38,7 @@ class StrokeMetrics:
     follow_through_frame_count: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items()}
+        return asdict(self)
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

@@ -67,6 +67,32 @@ POSE_CONFIDENCE_THRESHOLD=0.5
 
 If `MMPOSE_CONFIG` / `MMPOSE_CHECKPOINT` are empty, the backend uses the MMPose alias `human` (RTMPose-m; weights download on first run).
 
+### DensePose muscle overlay (optional)
+
+The muscle involvement overlay uses Detectron2 DensePose for body-surface clipping. Install after MMPose bootstrap:
+
+```bash
+cd backend
+./scripts/bootstrap_densepose.sh
+```
+
+DensePose weights download on first analyze. Configure in `.env`:
+
+```text
+DENSEPOSE_CONFIG=          # optional; defaults to bundled yaml
+DENSEPOSE_WEIGHTS=         # optional; defaults to Facebook model URL
+DENSEPOSE_SCORE_THRESHOLD=0.5
+OVERLAY_MUSCLE_SMOOTHING=0.4
+```
+
+Debug muscle overlay (saves artifacts under `outputs/{id}_pose_densepose_debug/`):
+
+```text
+DENSEPOSE_DEBUG=true
+DENSEPOSE_DEBUG_SHOW_PARTS=true   # solid body-part colors on output video
+DENSEPOSE_FAIL_LOUD=true          # return 500 instead of silent skip
+```
+
 ## 4. Run FastAPI
 
 From the `backend` directory (with venv active):

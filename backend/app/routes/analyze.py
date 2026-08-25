@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
+from app.config import settings
 from app.services.pose_service import pose_service
 from app.services.video_service import new_output_path, new_upload_path
 
@@ -13,7 +14,10 @@ ALLOWED_EXTENSIONS = {".mp4", ".mov"}
 
 
 @router.post("/analyze")
-async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
+async def analyze(
+    video: UploadFile = File(...),
+    muscle_overlay: bool | None = Query(default=None),
+) -> dict[str, str]:
     filename = video.filename or "upload.mp4"
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -32,6 +36,11 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
     phases_json_path: Path | None = None
     metrics_json_path: Path | None = None
     technique_json_path: Path | None = None
+    show_muscles = (
+        settings.overlay_muscle_enabled
+        if muscle_overlay is None
+        else muscle_overlay
+    )
 
     try:
         contents = await video.read()
@@ -55,11 +64,21 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
             _phase_sequence,
             _stroke_metrics,
             _technique_evaluation,
-        ) = pose_service.analyze_video(upload_path, output_path)
+        ) = pose_service.analyze_video(
+            upload_path,
+            output_path,
+            muscle_overlay=show_muscles,
+        )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        detail = str(exc)
+        if show_muscles and "DensePose" in detail:
+            detail = (
+                f"{detail} — Install DensePose with "
+                "backend/scripts/bootstrap_densepose.sh or disable muscle overlay."
+            )
+        raise HTTPException(status_code=500, detail=detail) from exc
     finally:
         if upload_path.exists():
             upload_path.unlink(missing_ok=True)
@@ -110,4 +129,5 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
         "stroke_metrics_json_url": f"/outputs/{metrics_json_path.name}",
         "technique_json_path": str(technique_json_path),
         "technique_json_url": f"/outputs/{technique_json_path.name}",
+        "muscle_overlay": str(show_muscles).lower(),
     }

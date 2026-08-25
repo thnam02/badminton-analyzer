@@ -30,6 +30,7 @@ export default function Home() {
   const [resultFilename, setResultFilename] = useState("processed_pose.mp4");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [muscleOverlay, setMuscleOverlay] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const canAnalyze = useMemo(() => Boolean(file) && !loading, [file, loading]);
@@ -67,10 +68,13 @@ export default function Home() {
     form.append("video", file);
 
     try {
-      const res = await fetch(`${API_BASE}/analyze`, {
+      const res = await fetch(
+        `${API_BASE}/analyze?muscle_overlay=${muscleOverlay ? "true" : "false"}`,
+        {
         method: "POST",
         body: form,
-      });
+        },
+      );
       if (!res.ok) {
         let detail = `Request failed (${res.status})`;
         try {
@@ -150,6 +154,21 @@ export default function Home() {
             />
           </div>
         )}
+
+        <label className="flex cursor-pointer items-center gap-3 text-sm text-[var(--fg)]">
+          <input
+            type="checkbox"
+            checked={muscleOverlay}
+            onChange={(e) => setMuscleOverlay(e.target.checked)}
+            className="h-4 w-4 rounded border-[var(--border)] accent-[var(--accent)]"
+          />
+          <span>
+            Show muscle involvement overlay{" "}
+            <span className="text-[var(--muted)]">
+              (phase-based demo, not EMG)
+            </span>
+          </span>
+        </label>
 
         <button
           type="button"

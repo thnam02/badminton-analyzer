@@ -95,7 +95,7 @@ def test_renderer_uses_precomputed_angles_without_inventing() -> None:
         timestamp=0.1,
         right_wrist_speed=1.234,
     )
-    out = AnnotationRenderer(anchor_smoothing=1.0).render(
+    out = AnnotationRenderer(anchor_smoothing=1.0, muscle_overlay=False).render(
         frame,
         pose_frame=pose,
         angle_frame=angles,
