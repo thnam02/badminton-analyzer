@@ -1,7 +1,5 @@
 # Badminton Pose Analyzer
 
-Minimal scaffold: upload a badminton video → RTMPose (MMPose) → skeleton overlay → browser-playable MP4.
-
 ## Structure
 
 ```text
