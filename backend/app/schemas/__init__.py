@@ -1,4 +1,12 @@
 from app.schemas.angles import AngleFrame, AngleSequence
+from app.schemas.evidence import (
+    CONTACT_TYPE_ESTIMATED,
+    EVIDENCE_VERSION,
+    STROKE_TYPE_SMASH,
+    ContactEvidence,
+    EvidencePackage,
+)
+from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, KeyframeSet
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import Keypoint, PoseFrame, PoseSequence
@@ -18,7 +26,6 @@ from app.schemas.technique import (
     TechniqueIssue,
 )
 from app.schemas.video_quality import VideoQualityMetrics, VideoQualityReport
-from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, KeyframeSet
 
 __all__ = [
     "AccelerationMetrics",
@@ -27,7 +34,11 @@ __all__ = [
     "BackswingMetrics",
     "CONTACT_MINUS_2",
     "CONTACT_PLUS_2",
+    "CONTACT_TYPE_ESTIMATED",
+    "ContactEvidence",
+    "EVIDENCE_VERSION",
     "EstimatedContactMetrics",
+    "EvidencePackage",
     "FollowThroughMetrics",
     "IssueSeverity",
     "Keyframe",
@@ -43,6 +54,7 @@ __all__ = [
     "PoseSequence",
     "PreparationMetrics",
     "ReferenceRange",
+    "STROKE_TYPE_SMASH",
     "SmashPhase",
     "StrokeMetrics",
     "TechniqueEvaluation",

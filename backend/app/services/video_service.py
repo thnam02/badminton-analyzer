@@ -78,6 +78,11 @@ def keyframes_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_keyframes.json")
 
 
+def evidence_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_evidence.json."""
+    return video_path.with_name(f"{video_path.stem}_evidence.json")
+
+
 def probe_video_metadata(video_path: Path) -> tuple[float, int, int]:
     """Return (fps, width, height) from container metadata without decoding frames."""
     capture = cv2.VideoCapture(str(video_path))

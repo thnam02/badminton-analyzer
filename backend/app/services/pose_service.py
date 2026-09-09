@@ -17,8 +17,10 @@ from app.processing.technique_config import technique_rule_config_from_settings
 from app.processing.temporal import preprocess_pose_sequence
 from app.processing.video_quality import assess_video_quality
 from app.schemas.pose import PoseFrame, PoseSequence
+from app.services.evidence_packager import evidence_packager
 from app.services.video_service import (
     angles_json_path_for,
+    evidence_json_path_for,
     iter_video_frames,
     keyframes_dir_for,
     keyframes_json_path_for,
@@ -120,6 +122,15 @@ class PoseService:
             stroke_metrics,
             technique_rule_config_from_settings(),
         )
+        evidence_package = evidence_packager.package(
+            video_quality=quality_report,
+            phases=phase_sequence,
+            metrics=stroke_metrics,
+            technique=technique_evaluation,
+            keyframes=keyframe_set,
+            # Handedness not detected yet; leave unset for the coaching layer.
+            handedness=None,
+        )
 
         pose_by_index = {f.frame_index: f for f in smoothed_sequence.frames}
         angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
@@ -167,6 +178,7 @@ class PoseService:
         technique_json_path = technique_json_path_for(output_path)
         quality_json_path = video_quality_json_path_for(output_path)
         keyframes_json_path = keyframes_json_path_for(output_path)
+        evidence_json_path = evidence_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
@@ -176,6 +188,7 @@ class PoseService:
         technique_evaluation.save_json(technique_json_path)
         quality_report.save_json(quality_json_path)
         keyframe_set.save_json(keyframes_json_path)
+        evidence_package.save_json(evidence_json_path)
         return (
             output_path,
             raw_json_path,
@@ -187,6 +200,7 @@ class PoseService:
             technique_json_path,
             quality_json_path,
             keyframes_json_path,
+            evidence_json_path,
             mesh_video_path,
             mesh_json_path,
             mesh_status,
@@ -199,6 +213,7 @@ class PoseService:
             technique_evaluation,
             quality_report,
             keyframe_set,
+            evidence_package,
         )
 
 
