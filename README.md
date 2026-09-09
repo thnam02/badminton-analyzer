@@ -15,6 +15,9 @@ badminton-analytics/
 
 Coach labeling / dataset export: see [docs/dataset-annotations.md](docs/dataset-annotations.md).
 
+Research Action Quality Assessment scaffold (mock only, not production):
+[docs/aqa-research.md](docs/aqa-research.md).
+
 ## 1. Install frontend dependencies
 
 ```bash
