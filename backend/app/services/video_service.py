@@ -63,6 +63,103 @@ def technique_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_technique.json")
 
 
+def video_quality_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_video_quality.json."""
+    return video_path.with_name(f"{video_path.stem}_video_quality.json")
+
+
+def keyframes_dir_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_keyframes/."""
+    return video_path.with_name(f"{video_path.stem}_keyframes")
+
+
+def keyframes_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_keyframes.json."""
+    return video_path.with_name(f"{video_path.stem}_keyframes.json")
+
+
+def evidence_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_evidence.json."""
+    return video_path.with_name(f"{video_path.stem}_evidence.json")
+
+
+def coaching_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_coaching.json."""
+    return video_path.with_name(f"{video_path.stem}_coaching.json")
+
+
+def _artifact_base_stem(video_path: Path) -> str:
+    """Strip trailing ``_pose`` so shuttle/mesh share the upload UUID stem."""
+    stem = video_path.stem
+    if stem.endswith("_pose"):
+        return stem[: -len("_pose")]
+    return stem
+
+
+def shuttle_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_shuttle.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_shuttle.json")
+
+
+def shuttle_debug_video_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_shuttle_debug.mp4."""
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_shuttle_debug.mp4"
+    )
+
+
+def racket_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_racket.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_racket.json")
+
+
+def racket_debug_video_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_racket_debug.mp4."""
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_racket_debug.mp4"
+    )
+
+
+def contact_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_contact.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_contact.json")
+
+
+def dataset_export_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_dataset.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_dataset.json")
+
+
+def annotation_template_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_annotation_template.json."""
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_annotation_template.json"
+    )
+
+
+def coach_annotation_json_path_for(video_path: Path, coach_id: str) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_annotation_{coach_id}.json."""
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in coach_id.strip())
+    safe = safe or "coach"
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_annotation_{safe}.json"
+    )
+
+
+def probe_video_metadata(video_path: Path) -> tuple[float, int, int]:
+    """Return (fps, width, height) from container metadata without decoding frames."""
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        raise RuntimeError(f"Could not open video: {video_path}")
+    try:
+        fps = float(capture.get(cv2.CAP_PROP_FPS) or 0.0) or 30.0
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+    finally:
+        capture.release()
+    return fps, width, height
+
+
 def mesh_video_path_for(video_path: Path) -> Path:
     """Map outputs/{id}_pose.mp4 -> outputs/{id}_mesh.mp4."""
     stem = video_path.stem

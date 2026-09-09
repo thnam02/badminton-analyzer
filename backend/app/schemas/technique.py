@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.schemas.phases import SmashPhase
+from app.schemas.reference import ReferenceEvidence
 
 
 class IssueSeverity(str, Enum):
@@ -36,9 +37,11 @@ class TechniqueIssue:
     reference_range: ReferenceRange
     unit: str
     description: str = ""
+    reference_profile_id: str = ""
+    reference_evidence: ReferenceEvidence | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "code": self.code,
             "phase": self.phase.value,
             "severity": self.severity.value,
@@ -47,7 +50,13 @@ class TechniqueIssue:
             "reference_range": self.reference_range.to_dict(),
             "unit": self.unit,
             "description": self.description,
+            "reference_profile_id": self.reference_profile_id,
         }
+        if self.reference_evidence is not None:
+            payload["reference_evidence"] = self.reference_evidence.to_dict()
+        else:
+            payload["reference_evidence"] = None
+        return payload
 
 
 @dataclass(slots=True)
@@ -55,6 +64,7 @@ class TechniqueEvaluation:
     video: str
     issues: list[TechniqueIssue] = field(default_factory=list)
     confidence: float = 0.0
+    reference_profile_id: str = ""
 
     @property
     def issue_count(self) -> int:
@@ -65,6 +75,7 @@ class TechniqueEvaluation:
             "video": self.video,
             "confidence": self.confidence,
             "issue_count": self.issue_count,
+            "reference_profile_id": self.reference_profile_id,
             "issues": [issue.to_dict() for issue in self.issues],
         }
 

@@ -29,22 +29,39 @@ def detect_smash_phases(
     pose: PoseSequence,
     angles: AngleSequence,
     motion: MotionSequence,
+    *,
+    forced_contact_frame_index: int | None = None,
 ) -> PhaseSequence:
-    """Detect PREPARATION → BACKSWING → ACCELERATION → ESTIMATED_CONTACT → FOLLOW_THROUGH."""
+    """Detect PREPARATION → BACKSWING → ACCELERATION → ESTIMATED_CONTACT → FOLLOW_THROUGH.
+
+    When ``forced_contact_frame_index`` is set (e.g. from ContactResolver), phase
+    windows are rebuilt around that frame instead of the peak-wrist-speed peak.
+    """
     feats = _build_features(pose, angles, motion)
     empty = PhaseSequence(video=pose.video or angles.video or motion.video)
     if not feats:
         return empty
 
     peak = motion.peaks.get("right_wrist_speed")
-    contact_idx_in_feats = _contact_feature_index(feats, peak)
+    if forced_contact_frame_index is not None:
+        contact_idx_in_feats = _feature_index_for_frame(feats, forced_contact_frame_index)
+        if contact_idx_in_feats is None:
+            contact_idx_in_feats = _nearest_feature_index(feats, forced_contact_frame_index)
+    else:
+        contact_idx_in_feats = _contact_feature_index(feats, peak)
     if contact_idx_in_feats is None:
         # Fallback: argmax among available wrist speeds.
         contact_idx_in_feats = _argmax_wrist(feats)
     if contact_idx_in_feats is None:
         return empty
 
-    peak_speed = feats[contact_idx_in_feats].wrist_speed
+    # Relative speeds still normalize to the kinematic peak speed when available,
+    # so forced contact does not break relative phase thresholds.
+    peak_speed = None
+    if peak is not None and peak.value is not None and math.isfinite(peak.value):
+        peak_speed = float(peak.value)
+    if peak_speed is None or peak_speed <= 0.0:
+        peak_speed = feats[contact_idx_in_feats].wrist_speed
     if peak_speed is None or peak_speed <= 0.0 or not math.isfinite(peak_speed):
         return empty
 
@@ -123,6 +140,16 @@ def detect_smash_phases(
     # Ensure every feature frame has a label (fill gaps conservatively).
     _fill_unlabeled(feats, frame_phases)
 
+    notes = (
+        "ESTIMATED_CONTACT is anchored at peak right-wrist speed; "
+        "shuttle/racket tracking is not used."
+    )
+    if forced_contact_frame_index is not None:
+        notes = (
+            "Contact phase snapped to ContactResolver frame "
+            f"{contact_feat.frame_index} (kinematic peak still informs relative speeds)."
+        )
+
     return PhaseSequence(
         video=pose.video or motion.video,
         segments=segments,
@@ -130,6 +157,7 @@ def detect_smash_phases(
         estimated_contact_frame_index=contact_feat.frame_index,
         estimated_contact_timestamp=contact_feat.timestamp,
         confidence=overall,
+        notes=notes,
     )
 
 
@@ -176,6 +204,19 @@ def _contact_feature_index(feats: list[_FrameFeat], peak) -> int | None:
         if feat.frame_index == peak.frame_index:
             return i
     return None
+
+
+def _feature_index_for_frame(feats: list[_FrameFeat], frame_index: int) -> int | None:
+    for i, feat in enumerate(feats):
+        if feat.frame_index == frame_index:
+            return i
+    return None
+
+
+def _nearest_feature_index(feats: list[_FrameFeat], frame_index: int) -> int | None:
+    if not feats:
+        return None
+    return min(range(len(feats)), key=lambda i: abs(feats[i].frame_index - frame_index))
 
 
 def _argmax_wrist(feats: list[_FrameFeat]) -> int | None:

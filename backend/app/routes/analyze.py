@@ -5,8 +5,11 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
+from app.services.dataset_exporter import dataset_exporter
 from app.services.mesh_jobs import read_status
 from app.services.pose_service import pose_service
+from app.services.racket_service import racket_service
+from app.services.shuttle_service import shuttle_service
 from app.services.video_service import new_output_path, new_upload_path
 
 router = APIRouter(tags=["analyze"])
@@ -38,6 +41,8 @@ async def analyze(
     video: UploadFile = File(...),
     muscle_overlay: bool | None = Query(default=None),
     mesh_overlay: bool | None = Query(default=None),
+    shuttle_track: bool | None = Query(default=None),
+    racket_track: bool | None = Query(default=None),
 ) -> dict[str, str]:
     filename = video.filename or "upload.mp4"
     suffix = Path(filename).suffix.lower()
@@ -57,6 +62,17 @@ async def analyze(
     phases_json_path: Path | None = None
     metrics_json_path: Path | None = None
     technique_json_path: Path | None = None
+    quality_json_path: Path | None = None
+    keyframes_json_path: Path | None = None
+    evidence_json_path: Path | None = None
+    coaching_json_path: Path | None = None
+    contact_json_path: Path | None = None
+    dataset_json_path: Path | None = None
+    annotation_template_json_path: Path | None = None
+    shuttle_json_path: Path | None = None
+    shuttle_debug_path: Path | None = None
+    racket_json_path: Path | None = None
+    racket_debug_path: Path | None = None
     mesh_video_path: Path | None = None
     mesh_json_path: Path | None = None
     mesh_status_payload: dict | None = None
@@ -64,6 +80,12 @@ async def analyze(
     show_muscles = False
     del muscle_overlay
     run_mesh = settings.mesh_enabled if mesh_overlay is None else mesh_overlay
+    run_shuttle = (
+        settings.shuttle_enabled if shuttle_track is None else shuttle_track
+    )
+    run_racket = (
+        settings.racket_enabled if racket_track is None else racket_track
+    )
 
     try:
         contents = await video.read()
@@ -80,22 +102,93 @@ async def analyze(
             phases_json_path,
             metrics_json_path,
             technique_json_path,
+            quality_json_path,
+            keyframes_json_path,
+            evidence_json_path,
+            coaching_json_path,
+            contact_json_path,
             mesh_video_path,
             mesh_json_path,
             mesh_status_payload,
             _raw_sequence,
-            _smoothed_sequence,
-            _angle_sequence,
-            _motion_sequence,
-            _phase_sequence,
+            smoothed_sequence,
+            angle_sequence,
+            motion_sequence,
+            phase_sequence,
             _stroke_metrics,
             _technique_evaluation,
+            quality_report,
+            _keyframe_set,
+            _evidence_package,
+            _coaching_report,
+            _contact_event,
         ) = pose_service.analyze_video(
             upload_path,
             output_path,
             muscle_overlay=False,
             mesh_overlay=run_mesh,
         )
+        shuttle_traj = None
+        racket_traj = None
+        if run_shuttle and video_path is not None:
+            shuttle_json_path, shuttle_debug_path, shuttle_traj = (
+                shuttle_service.track_video(upload_path, video_path)
+            )
+        if run_racket and video_path is not None:
+            racket_json_path, racket_debug_path, racket_traj = racket_service.track_video(
+                upload_path,
+                video_path,
+                pose=smoothed_sequence,
+                pose_json_path=smoothed_json_path,
+            )
+        # Resolve tracked vs kinematic contact; snap metrics when trajectories exist.
+        if (
+            video_path is not None
+            and (shuttle_traj is not None or racket_traj is not None)
+            and phases_json_path is not None
+            and metrics_json_path is not None
+            and technique_json_path is not None
+            and keyframes_json_path is not None
+            and evidence_json_path is not None
+            and coaching_json_path is not None
+            and contact_json_path is not None
+        ):
+            pose_service.apply_resolved_contact(
+                input_path=upload_path,
+                output_path=video_path,
+                pose=smoothed_sequence,
+                angles=angle_sequence,
+                motion=motion_sequence,
+                quality_report=quality_report,
+                phases_json_path=phases_json_path,
+                metrics_json_path=metrics_json_path,
+                technique_json_path=technique_json_path,
+                keyframes_json_path=keyframes_json_path,
+                evidence_json_path=evidence_json_path,
+                coaching_json_path=coaching_json_path,
+                contact_json_path=contact_json_path,
+                shuttle=shuttle_traj,
+                racket=racket_traj,
+                kinematic_phases=phase_sequence,
+            )
+        # Label-ready export only — does not recompute CV / metrics / coaching.
+        if video_path is not None:
+            dataset_json_path, annotation_template_json_path, _export = (
+                dataset_exporter.export_analysis(
+                    output_stem=video_path,
+                    phases_json_path=phases_json_path,
+                    metrics_json_path=metrics_json_path,
+                    contact_json_path=contact_json_path,
+                    technique_json_path=technique_json_path,
+                    keyframes_json_path=keyframes_json_path,
+                    quality_json_path=quality_json_path,
+                    evidence_json_path=evidence_json_path,
+                    pose_json_path=raw_json_path,
+                    smoothed_pose_json_path=smoothed_json_path,
+                    shuttle_json_path=shuttle_json_path,
+                    racket_json_path=racket_json_path,
+                )
+            )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -106,6 +199,17 @@ async def analyze(
                 "and body models under vendor/WHAM/dataset/body_models. "
                 "Soft deps: pip install -r requirements.txt. "
                 "Analyze with mesh enabled reuses RTMPose tracks (no ViTPose)."
+            )
+        if run_shuttle and ("Shuttle" in detail or "TrackNet" in detail):
+            detail = (
+                f"{detail} — Shuttle tracking needs TrackNetV3 "
+                "(SHUTTLE_TRACKNET_ROOT + SHUTTLE_TRACKNET_WEIGHTS) "
+                "or SHUTTLE_BACKEND=heuristic."
+            )
+        if run_racket and ("Racket" in detail or "racket" in detail):
+            detail = (
+                f"{detail} — Racket detection uses RACKET_BACKEND=pose_guided "
+                "(needs smoothed pose) or RACKET_YOLO_WEIGHTS."
             )
         raise HTTPException(status_code=500, detail=detail) from exc
     finally:
@@ -140,6 +244,56 @@ async def analyze(
         raise HTTPException(
             status_code=500, detail="Processing produced no technique JSON"
         )
+    if quality_json_path is None or not quality_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no video quality JSON"
+        )
+    if keyframes_json_path is None or not keyframes_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no keyframes JSON"
+        )
+    if evidence_json_path is None or not evidence_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no evidence JSON"
+        )
+    if coaching_json_path is None or not coaching_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no coaching JSON"
+        )
+    if contact_json_path is None or not contact_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no contact JSON"
+        )
+    if dataset_json_path is None or not dataset_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no dataset export JSON"
+        )
+    if (
+        annotation_template_json_path is None
+        or not annotation_template_json_path.exists()
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail="Processing produced no annotation template JSON",
+        )
+    if run_shuttle:
+        if shuttle_json_path is None or not shuttle_json_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no shuttle JSON"
+            )
+        if shuttle_debug_path is None or not shuttle_debug_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no shuttle debug video"
+            )
+    if run_racket:
+        if racket_json_path is None or not racket_json_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no racket JSON"
+            )
+        if racket_debug_path is None or not racket_debug_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no racket debug video"
+            )
 
     payload: dict[str, str] = {
         "output_path": str(video_path),
@@ -158,9 +312,37 @@ async def analyze(
         "stroke_metrics_json_url": f"/outputs/{metrics_json_path.name}",
         "technique_json_path": str(technique_json_path),
         "technique_json_url": f"/outputs/{technique_json_path.name}",
+        "video_quality_json_path": str(quality_json_path),
+        "video_quality_json_url": f"/outputs/{quality_json_path.name}",
+        "keyframes_json_path": str(keyframes_json_path),
+        "keyframes_json_url": f"/outputs/{keyframes_json_path.name}",
+        "evidence_json_path": str(evidence_json_path),
+        "evidence_json_url": f"/outputs/{evidence_json_path.name}",
+        "coaching_json_path": str(coaching_json_path),
+        "coaching_json_url": f"/outputs/{coaching_json_path.name}",
+        "contact_json_path": str(contact_json_path),
+        "contact_json_url": f"/outputs/{contact_json_path.name}",
+        "dataset_json_path": str(dataset_json_path),
+        "dataset_json_url": f"/outputs/{dataset_json_path.name}",
+        "annotation_template_json_path": str(annotation_template_json_path),
+        "annotation_template_json_url": (
+            f"/outputs/{annotation_template_json_path.name}"
+        ),
         "muscle_overlay": str(show_muscles).lower(),
         "mesh_overlay": str(run_mesh).lower(),
+        "shuttle_track": str(run_shuttle).lower(),
+        "racket_track": str(run_racket).lower(),
     }
+    if run_shuttle and shuttle_json_path is not None and shuttle_debug_path is not None:
+        payload["shuttle_json_path"] = str(shuttle_json_path)
+        payload["shuttle_json_url"] = f"/outputs/{shuttle_json_path.name}"
+        payload["shuttle_debug_video_path"] = str(shuttle_debug_path)
+        payload["shuttle_debug_video_url"] = f"/outputs/{shuttle_debug_path.name}"
+    if run_racket and racket_json_path is not None and racket_debug_path is not None:
+        payload["racket_json_path"] = str(racket_json_path)
+        payload["racket_json_url"] = f"/outputs/{racket_json_path.name}"
+        payload["racket_debug_video_path"] = str(racket_debug_path)
+        payload["racket_debug_video_url"] = f"/outputs/{racket_debug_path.name}"
     if mesh_status_payload is not None:
         payload["mesh_status"] = str(mesh_status_payload.get("status", "pending"))
         payload["mesh_job_id"] = str(mesh_status_payload.get("job_id", ""))
