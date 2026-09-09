@@ -95,6 +95,14 @@ class Settings(BaseSettings):
     racket_track_max_jump: float = 0.25
     racket_debug_trail_length: int = 12
 
+    # ContactResolver (kinematic + optional shuttle/racket)
+    contact_search_radius: int = 8
+    contact_min_tracked_confidence: float = 0.55
+    contact_max_shuttle_racket_dist: float = 0.12
+    contact_max_racket_wrist_dist: float = 0.18
+    contact_min_visible_frames: int = 3
+    contact_ambiguity_margin: float = 0.08
+
     upload_dir: Path = ROOT_DIR / "uploads"
     output_dir: Path = ROOT_DIR / "outputs"
     cors_origins: str = "http://localhost:3000"

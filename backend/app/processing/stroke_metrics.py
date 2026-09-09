@@ -8,6 +8,7 @@ from statistics import mean
 from typing import Protocol, TypeVar
 
 from app.schemas.angles import AngleSequence
+from app.schemas.contact import ContactEvent
 from app.schemas.motion import MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import PoseSequence
@@ -37,17 +38,32 @@ def compute_stroke_metrics(
     angles: AngleSequence,
     motion: MotionSequence,
     phases: PhaseSequence,
+    *,
+    contact: ContactEvent | None = None,
 ) -> LegacyStrokeMetrics:
-    """Aggregate phase-aware metrics for rule-based technique evaluation."""
+    """Aggregate phase-aware metrics for rule-based technique evaluation.
+
+    When ``contact`` is provided, contact-frame measurements snap to that event
+    even if phase labels still mention ESTIMATED_CONTACT.
+    """
     video = pose.video or angles.video or motion.video or phases.video
+    contact_idx = (
+        contact.frame_index
+        if contact is not None
+        else phases.estimated_contact_frame_index
+    )
+    contact_ts = (
+        contact.timestamp
+        if contact is not None
+        else phases.estimated_contact_timestamp
+    )
     metrics = LegacyStrokeMetrics(
         video=video,
-        estimated_contact_frame_index=phases.estimated_contact_frame_index,
-        estimated_contact_timestamp=phases.estimated_contact_timestamp,
+        estimated_contact_frame_index=contact_idx,
+        estimated_contact_timestamp=contact_ts,
         phase_confidence=phases.confidence,
     )
 
-    contact_idx = phases.estimated_contact_frame_index
     if contact_idx is None:
         return metrics
 
@@ -94,6 +110,8 @@ def extract_stroke_metrics(
     phases: PhaseSequence,
     angles: AngleSequence,
     motion: MotionSequence,
+    *,
+    contact: ContactEvent | None = None,
 ) -> PhaseStrokeMetrics:
     """Pull per-phase extrema / means; values are None when a window or sample is missing."""
     angle_by = {frame.frame_index: frame for frame in angles.frames}
@@ -105,7 +123,16 @@ def extract_stroke_metrics(
     accel_seg = _first_segment(phases, SmashPhase.ACCELERATION)
     follow_seg = _first_segment(phases, SmashPhase.FOLLOW_THROUGH)
 
-    contact_idx = phases.estimated_contact_frame_index
+    contact_idx = (
+        contact.frame_index
+        if contact is not None
+        else phases.estimated_contact_frame_index
+    )
+    contact_ts = (
+        contact.timestamp
+        if contact is not None
+        else phases.estimated_contact_timestamp
+    )
     contact_angle = angle_by.get(contact_idx) if contact_idx is not None else None
     contact_motion = motion_by.get(contact_idx) if contact_idx is not None else None
 
@@ -147,8 +174,8 @@ def extract_stroke_metrics(
         estimated_contact=EstimatedContactMetrics(
             frame_index=contact_idx,
             timestamp=(
-                phases.estimated_contact_timestamp
-                if phases.estimated_contact_timestamp is not None
+                contact_ts
+                if contact_ts is not None
                 else contact_motion.timestamp
                 if contact_motion is not None
                 else contact_angle.timestamp

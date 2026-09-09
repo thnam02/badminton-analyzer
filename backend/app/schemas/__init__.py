@@ -6,8 +6,14 @@ from app.schemas.coaching import (
     PrioritizedIssue,
     Strength,
 )
-from app.schemas.evidence import (
+from app.schemas.contact import (
     CONTACT_TYPE_ESTIMATED,
+    CONTACT_TYPE_KINEMATIC,
+    CONTACT_TYPE_TRACKED,
+    ContactEvent,
+    ContactSignalEvidence,
+)
+from app.schemas.evidence import (
     EVIDENCE_VERSION,
     STROKE_TYPE_SMASH,
     ContactEvidence,
@@ -17,12 +23,12 @@ from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, Key
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import Keypoint, PoseFrame, PoseSequence
+from app.schemas.racket import RacketBBox, RacketPoint, RacketTrajectory
 from app.schemas.reference import (
     MetricReference,
     ReferenceEvidence,
     ReferenceProfile,
 )
-from app.schemas.racket import RacketBBox, RacketPoint, RacketTrajectory
 from app.schemas.shuttle import ShuttlePoint, ShuttleTrajectory
 from app.schemas.stroke import (
     AccelerationMetrics,
@@ -49,9 +55,13 @@ __all__ = [
     "CONTACT_MINUS_2",
     "CONTACT_PLUS_2",
     "CONTACT_TYPE_ESTIMATED",
+    "CONTACT_TYPE_KINEMATIC",
+    "CONTACT_TYPE_TRACKED",
     "CoachingReport",
     "CoachingStatus",
+    "ContactEvent",
     "ContactEvidence",
+    "ContactSignalEvidence",
     "DrillSuggestion",
     "EVIDENCE_VERSION",
     "EstimatedContactMetrics",

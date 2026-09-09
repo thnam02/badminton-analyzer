@@ -5,8 +5,9 @@ Performs no biomechanics, pose estimation, or other CV calculations.
 
 from __future__ import annotations
 
+from app.schemas.contact import ContactEvent
 from app.schemas.evidence import (
-    CONTACT_TYPE_ESTIMATED,
+    CONTACT_TYPE_KINEMATIC,
     EVIDENCE_VERSION,
     STROKE_TYPE_SMASH,
     ContactEvidence,
@@ -58,6 +59,7 @@ class EvidencePackager:
         stroke_type: str = STROKE_TYPE_SMASH,
         handedness: str | None = None,
         evidence_version: str = EVIDENCE_VERSION,
+        contact: ContactEvent | ContactEvidence | None = None,
     ) -> EvidencePackage:
         video = (
             metrics.video
@@ -66,7 +68,7 @@ class EvidencePackager:
             or video_quality.video
             or keyframes.video
         )
-        contact_conf = _contact_confidence(phases)
+        contact_evidence = _resolve_contact_evidence(contact, phases)
         analysis_confidence = _analysis_confidence(
             video_quality.analysis_confidence,
             phases.confidence,
@@ -82,12 +84,7 @@ class EvidencePackager:
             video_quality=video_quality.to_dict(),
             phase_boundaries=[seg.to_dict() for seg in phases.segments],
             phase_confidence=float(phases.confidence),
-            contact=ContactEvidence(
-                contact_type=CONTACT_TYPE_ESTIMATED,
-                confidence=contact_conf,
-                frame_index=phases.estimated_contact_frame_index,
-                timestamp=phases.estimated_contact_timestamp,
-            ),
+            contact=contact_evidence,
             metrics=metrics.to_dict(),
             technique_issues=[issue.to_dict() for issue in technique.issues],
             technique_confidence=float(technique.confidence),
@@ -105,6 +102,7 @@ def package_evidence(
     keyframes: KeyframeSet,
     stroke_type: str = STROKE_TYPE_SMASH,
     handedness: str | None = None,
+    contact: ContactEvent | ContactEvidence | None = None,
 ) -> EvidencePackage:
     """Module-level convenience wrapper around ``EvidencePackager``."""
     return EvidencePackager().package(
@@ -115,6 +113,24 @@ def package_evidence(
         keyframes=keyframes,
         stroke_type=stroke_type,
         handedness=handedness,
+        contact=contact,
+    )
+
+
+def _resolve_contact_evidence(
+    contact: ContactEvent | ContactEvidence | None,
+    phases: PhaseSequence,
+) -> ContactEvidence:
+    if isinstance(contact, ContactEvidence):
+        return contact
+    if isinstance(contact, ContactEvent):
+        return ContactEvidence.from_contact_event(contact)
+    return ContactEvidence(
+        contact_type=CONTACT_TYPE_KINEMATIC,
+        confidence=_contact_confidence(phases),
+        frame_index=phases.estimated_contact_frame_index,
+        timestamp=phases.estimated_contact_timestamp,
+        kinematic_frame_index=phases.estimated_contact_frame_index,
     )
 
 

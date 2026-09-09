@@ -120,6 +120,11 @@ def racket_debug_video_path_for(video_path: Path) -> Path:
     )
 
 
+def contact_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_contact.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_contact.json")
+
+
 def probe_video_metadata(video_path: Path) -> tuple[float, int, int]:
     """Return (fps, width, height) from container metadata without decoding frames."""
     capture = cv2.VideoCapture(str(video_path))
