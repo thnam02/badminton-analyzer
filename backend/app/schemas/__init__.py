@@ -17,6 +17,7 @@ from app.schemas.technique import (
     TechniqueEvaluation,
     TechniqueIssue,
 )
+from app.schemas.video_quality import VideoQualityMetrics, VideoQualityReport
 
 __all__ = [
     "AccelerationMetrics",
@@ -41,4 +42,6 @@ __all__ = [
     "StrokeMetrics",
     "TechniqueEvaluation",
     "TechniqueIssue",
+    "VideoQualityMetrics",
+    "VideoQualityReport",
 ]

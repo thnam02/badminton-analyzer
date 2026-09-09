@@ -14,6 +14,7 @@ from app.processing.stroke_metrics import compute_stroke_metrics
 from app.processing.technique import evaluate_technique
 from app.processing.technique_config import technique_rule_config_from_settings
 from app.processing.temporal import preprocess_pose_sequence
+from app.processing.video_quality import assess_video_quality
 from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.video_service import (
     angles_json_path_for,
@@ -21,10 +22,12 @@ from app.services.video_service import (
     motion_json_path_for,
     phases_json_path_for,
     pose_json_path_for,
+    probe_video_metadata,
     process_video_frames,
     smoothed_pose_json_path_for,
     stroke_metrics_json_path_for,
     technique_json_path_for,
+    video_quality_json_path_for,
 )
 
 
@@ -54,6 +57,7 @@ class PoseService:
         del muscle_overlay  # retired path — ignored
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
+        video_fps, video_width, video_height = probe_video_metadata(input_path)
 
         def collect_frame(frame, frame_index: int, fps: float) -> None:
             keypoints = estimator.predict(frame)
@@ -73,6 +77,14 @@ class PoseService:
             max_gap=settings.pose_interp_max_gap,
             savgol_window=settings.pose_savgol_window,
             savgol_polyorder=settings.pose_savgol_polyorder,
+        )
+        quality_report = assess_video_quality(
+            raw_sequence,
+            smoothed_pose=smoothed_sequence,
+            fps=video_fps,
+            width=video_width,
+            height=video_height,
+            confidence_threshold=settings.pose_confidence_threshold,
         )
         angle_sequence = compute_angle_sequence(
             smoothed_sequence,
@@ -143,6 +155,7 @@ class PoseService:
         phases_json_path = phases_json_path_for(output_path)
         metrics_json_path = stroke_metrics_json_path_for(output_path)
         technique_json_path = technique_json_path_for(output_path)
+        quality_json_path = video_quality_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
@@ -150,6 +163,7 @@ class PoseService:
         phase_sequence.save_json(phases_json_path)
         stroke_metrics.save_json(metrics_json_path)
         technique_evaluation.save_json(technique_json_path)
+        quality_report.save_json(quality_json_path)
         return (
             output_path,
             raw_json_path,
@@ -159,6 +173,7 @@ class PoseService:
             phases_json_path,
             metrics_json_path,
             technique_json_path,
+            quality_json_path,
             mesh_video_path,
             mesh_json_path,
             mesh_status,
@@ -169,6 +184,7 @@ class PoseService:
             phase_sequence,
             stroke_metrics,
             technique_evaluation,
+            quality_report,
         )
 
 

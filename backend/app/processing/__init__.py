@@ -4,8 +4,10 @@ from app.processing.phases import detect_smash_phases
 from app.processing.stroke_metrics import compute_stroke_metrics, extract_stroke_metrics
 from app.processing.technique import evaluate_technique
 from app.processing.temporal import preprocess_pose_sequence
+from app.processing.video_quality import assess_video_quality
 
 __all__ = [
+    "assess_video_quality",
     "compute_angle_sequence",
     "compute_motion_derivatives",
     "compute_stroke_metrics",

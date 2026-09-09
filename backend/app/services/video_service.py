@@ -63,6 +63,25 @@ def technique_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_technique.json")
 
 
+def video_quality_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_pose_video_quality.json."""
+    return video_path.with_name(f"{video_path.stem}_video_quality.json")
+
+
+def probe_video_metadata(video_path: Path) -> tuple[float, int, int]:
+    """Return (fps, width, height) from container metadata without decoding frames."""
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        raise RuntimeError(f"Could not open video: {video_path}")
+    try:
+        fps = float(capture.get(cv2.CAP_PROP_FPS) or 0.0) or 30.0
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+    finally:
+        capture.release()
+    return fps, width, height
+
+
 def mesh_video_path_for(video_path: Path) -> Path:
     """Map outputs/{id}_pose.mp4 -> outputs/{id}_mesh.mp4."""
     stem = video_path.stem
