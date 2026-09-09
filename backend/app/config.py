@@ -51,7 +51,10 @@ class Settings(BaseSettings):
     mesh_show_reprojection: bool = True
     mesh_focal_length: float = 0.0  # 0 → CLIFF focal sqrt(w^2+h^2)
 
-    # Technique rule thresholds (V1 smash)
+    # Technique reference profiles (metric bands); severity bands are fixed below.
+    technique_reference_profile_id: str = ""
+    technique_default_camera_view: str = "SIDE"
+    # Seed values for provisional smash profile construction (not scientific norms).
     technique_min_contact_elbow_angle_deg: float = 150.0
     technique_min_knee_contribution_deg: float = 12.0
     technique_max_peak_elbow_omega_lead_frames: int = 2

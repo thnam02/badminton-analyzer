@@ -17,6 +17,11 @@ from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, Key
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import Keypoint, PoseFrame, PoseSequence
+from app.schemas.reference import (
+    MetricReference,
+    ReferenceEvidence,
+    ReferenceProfile,
+)
 from app.schemas.stroke import (
     AccelerationMetrics,
     BackswingMetrics,
@@ -54,6 +59,7 @@ __all__ = [
     "Keyframe",
     "KeyframeSet",
     "Keypoint",
+    "MetricReference",
     "MotionFrame",
     "MotionSequence",
     "PeakStats",
@@ -64,6 +70,8 @@ __all__ = [
     "PoseSequence",
     "PreparationMetrics",
     "PrioritizedIssue",
+    "ReferenceEvidence",
+    "ReferenceProfile",
     "ReferenceRange",
     "STROKE_TYPE_SMASH",
     "SmashPhase",

@@ -1,15 +1,25 @@
-"""Tests for stroke metrics and V1 technique evaluation rules."""
+"""Tests for stroke metrics and profile-based technique evaluation."""
 
 from __future__ import annotations
 
 from app.processing.phases import detect_smash_phases
+from app.processing.reference_profiles import (
+    METRIC_ACCEL_FRACTION,
+    METRIC_CONTACT_ELBOW,
+    METRIC_CONTACT_WRIST_Y,
+    METRIC_ELBOW_PEAK_TIMING,
+    METRIC_FOLLOW_THROUGH_FRAMES,
+    METRIC_FOLLOW_THROUGH_RETENTION,
+    METRIC_KNEE_CONTRIBUTION,
+    build_provisional_smash_right_side,
+)
 from app.processing.stroke_metrics import compute_stroke_metrics
 from app.processing.technique import evaluate_technique
-from app.processing.technique_config import TechniqueRuleConfig
 from app.schemas.angles import AngleFrame, AngleSequence
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
 from app.schemas.phases import SmashPhase
 from app.schemas.pose import Keypoint, PoseFrame, PoseSequence
+from app.schemas.reference import MetricReference, ReferenceProfile
 from app.schemas.technique import IssueSeverity
 
 
@@ -92,6 +102,21 @@ def _build_pipeline(n: int = 40, contact: int = 28, dt: float = 0.05):
     return pose, angles, motion, phases, metrics
 
 
+def _profile_with(**metric_overrides: MetricReference) -> ReferenceProfile:
+    base = build_provisional_smash_right_side()
+    metrics = dict(base.metrics)
+    metrics.update(metric_overrides)
+    return ReferenceProfile(
+        profile_id=base.profile_id,
+        stroke_type=base.stroke_type,
+        handedness=base.handedness,
+        camera_view=base.camera_view,
+        metrics=metrics,
+        provisional=True,
+        notes=base.notes,
+    )
+
+
 def test_stroke_metrics_populated_at_contact() -> None:
     _, _, _, phases, metrics = _build_pipeline()
     assert metrics.estimated_contact_frame_index == phases.estimated_contact_frame_index
@@ -105,18 +130,31 @@ def test_stroke_metrics_populated_at_contact() -> None:
 
 def test_good_technique_produces_few_or_no_issues() -> None:
     _, _, _, _, metrics = _build_pipeline()
-    evaluation = evaluate_technique(metrics, TechniqueRuleConfig())
-    # Synthetic good smash may still flag 0–2 borderline items; should not flood.
+    evaluation = evaluate_technique(metrics, profile=build_provisional_smash_right_side())
     assert evaluation.issue_count <= 3
+    assert evaluation.reference_profile_id == "smash_right_side_provisional_v1"
 
 
 def test_insufficient_elbow_extension_detected() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.contact_elbow_angle_deg = 120.0
-    evaluation = evaluate_technique(
-        metrics,
-        TechniqueRuleConfig(min_contact_elbow_angle_deg=150.0),
+    profile = _profile_with(
+        **{
+            METRIC_CONTACT_ELBOW: MetricReference(
+                metric_id=METRIC_CONTACT_ELBOW,
+                unit="deg",
+                median=162.0,
+                lower_percentile=150.0,
+                upper_percentile=180.0,
+                sample_count=24,
+                provenance="test",
+                confidence=0.5,
+                provisional=True,
+                direction="higher_is_better",
+            )
+        }
     )
+    evaluation = evaluate_technique(metrics, profile=profile)
     codes = {i.code for i in evaluation.issues}
     assert "INSUFFICIENT_ELBOW_EXTENSION" in codes
     issue = next(i for i in evaluation.issues if i.code == "INSUFFICIENT_ELBOW_EXTENSION")
@@ -125,35 +163,79 @@ def test_insufficient_elbow_extension_detected() -> None:
     assert issue.reference_range.min == 150.0
     assert issue.unit == "deg"
     assert issue.severity in IssueSeverity
+    assert issue.reference_profile_id == profile.profile_id
+    assert issue.reference_evidence is not None
+    assert issue.reference_evidence.metric_id == METRIC_CONTACT_ELBOW
+    assert issue.reference_evidence.provisional is True
+    assert issue.reference_evidence.lower_percentile == 150.0
 
 
 def test_low_knee_contribution_detected() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.knee_contribution_deg = 3.0
-    evaluation = evaluate_technique(
-        metrics,
-        TechniqueRuleConfig(min_knee_contribution_deg=12.0),
+    profile = _profile_with(
+        **{
+            METRIC_KNEE_CONTRIBUTION: MetricReference(
+                metric_id=METRIC_KNEE_CONTRIBUTION,
+                unit="deg",
+                median=18.0,
+                lower_percentile=12.0,
+                upper_percentile=40.0,
+                sample_count=24,
+                provenance="test",
+                confidence=0.5,
+                provisional=True,
+                direction="higher_is_better",
+            )
+        }
     )
+    evaluation = evaluate_technique(metrics, profile=profile)
     assert any(i.code == "LOW_KNEE_CONTRIBUTION" for i in evaluation.issues)
 
 
 def test_poor_acceleration_timing_detected() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.peak_elbow_omega_offset_frames = 10
-    evaluation = evaluate_technique(
-        metrics,
-        TechniqueRuleConfig(max_peak_elbow_omega_lead_frames=2),
+    profile = _profile_with(
+        **{
+            METRIC_ELBOW_PEAK_TIMING: MetricReference(
+                metric_id=METRIC_ELBOW_PEAK_TIMING,
+                unit="frames",
+                median=-2.0,
+                lower_percentile=-8.0,
+                upper_percentile=2.0,
+                sample_count=24,
+                provenance="test",
+                confidence=0.5,
+                provisional=True,
+                direction="in_range",
+            )
+        }
     )
+    evaluation = evaluate_technique(metrics, profile=profile)
     assert any(i.code == "POOR_ARM_ACCELERATION_TIMING" for i in evaluation.issues)
 
 
 def test_low_contact_posture_detected() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.contact_wrist_y_normalized = 0.75
-    evaluation = evaluate_technique(
-        metrics,
-        TechniqueRuleConfig(max_contact_wrist_y_normalized=0.58),
+    profile = _profile_with(
+        **{
+            METRIC_CONTACT_WRIST_Y: MetricReference(
+                metric_id=METRIC_CONTACT_WRIST_Y,
+                unit="normalized_y",
+                median=0.42,
+                lower_percentile=0.15,
+                upper_percentile=0.58,
+                sample_count=24,
+                provenance="test",
+                confidence=0.5,
+                provisional=True,
+                direction="lower_is_better",
+            )
+        }
     )
+    evaluation = evaluate_technique(metrics, profile=profile)
     issue = next(i for i in evaluation.issues if i.code == "LOW_CONTACT_POSTURE")
     assert issue.measured_value == 0.75
     assert issue.reference_range.max == 0.58
@@ -163,20 +245,45 @@ def test_weak_follow_through_detected() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.follow_through_speed_ratio = 0.1
     metrics.follow_through_frame_count = 1
-    evaluation = evaluate_technique(
-        metrics,
-        TechniqueRuleConfig(
-            min_follow_through_speed_ratio=0.30,
-            min_follow_through_frames=2,
-        ),
+    profile = _profile_with(
+        **{
+            METRIC_FOLLOW_THROUGH_RETENTION: MetricReference(
+                metric_id=METRIC_FOLLOW_THROUGH_RETENTION,
+                unit="speed_ratio",
+                median=0.45,
+                lower_percentile=0.30,
+                upper_percentile=1.0,
+                sample_count=24,
+                provenance="test",
+                confidence=0.5,
+                provisional=True,
+                direction="higher_is_better",
+            ),
+            METRIC_FOLLOW_THROUGH_FRAMES: MetricReference(
+                metric_id=METRIC_FOLLOW_THROUGH_FRAMES,
+                unit="frames",
+                median=6.0,
+                lower_percentile=2.0,
+                upper_percentile=20.0,
+                sample_count=24,
+                provenance="test",
+                confidence=0.5,
+                provisional=True,
+                direction="higher_is_better",
+            ),
+            METRIC_ACCEL_FRACTION: build_provisional_smash_right_side().metrics[
+                METRIC_ACCEL_FRACTION
+            ],
+        }
     )
+    evaluation = evaluate_technique(metrics, profile=profile)
     assert any(i.code == "WEAK_FOLLOW_THROUGH" for i in evaluation.issues)
 
 
 def test_technique_issue_has_required_fields() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.contact_elbow_angle_deg = 100.0
-    evaluation = evaluate_technique(metrics, TechniqueRuleConfig())
+    evaluation = evaluate_technique(metrics, profile=build_provisional_smash_right_side())
     assert evaluation.issues
     issue = evaluation.issues[0]
     assert issue.code
@@ -185,3 +292,6 @@ def test_technique_issue_has_required_fields() -> None:
     assert 0.0 <= issue.confidence <= 1.0
     assert issue.reference_range.min is not None or issue.reference_range.max is not None
     assert issue.unit
+    assert issue.reference_profile_id
+    assert issue.reference_evidence is not None
+    assert "provisional" in issue.to_dict()["reference_evidence"]

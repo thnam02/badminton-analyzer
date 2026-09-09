@@ -24,6 +24,7 @@ from app.schemas.video_quality import VideoQualityReport
 ISSUE_PRIMARY_METRIC: dict[str, str] = {
     "INSUFFICIENT_ELBOW_EXTENSION": "contact_elbow_angle_deg",
     "LOW_KNEE_CONTRIBUTION": "knee_contribution_deg",
+    "PREPARATION_KNEE_OUT_OF_RANGE": "preparation_knee_angle_deg",
     "POOR_ARM_ACCELERATION_TIMING": "peak_elbow_omega_offset_frames",
     "LOW_CONTACT_POSTURE": "contact_wrist_y_normalized",
     "WEAK_FOLLOW_THROUGH": "follow_through_speed_ratio",

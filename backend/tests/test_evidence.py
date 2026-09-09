@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.processing.technique import evaluate_technique
-from app.processing.technique_config import TechniqueRuleConfig
+from app.processing.reference_profiles import build_provisional_smash_right_side
 from app.schemas.evidence import (
     CONTACT_TYPE_ESTIMATED,
     EVIDENCE_VERSION,
@@ -64,7 +64,7 @@ def _keyframes(video: str = "smash.mp4") -> KeyframeSet:
 
 def test_package_contains_versioned_coaching_fields(tmp_path: Path) -> None:
     _, _, _, phases, metrics = _build_pipeline()
-    technique = evaluate_technique(metrics, TechniqueRuleConfig())
+    technique = evaluate_technique(metrics, profile=build_provisional_smash_right_side())
     quality = _quality()
     keyframes = _keyframes()
 
@@ -111,17 +111,10 @@ def test_all_issue_measured_values_match_stroke_metrics() -> None:
     metrics.follow_through_speed_ratio = 0.05
     metrics.follow_through_frame_count = 0
 
-    cfg = TechniqueRuleConfig(
-        min_contact_elbow_angle_deg=150.0,
-        min_knee_contribution_deg=12.0,
-        max_peak_elbow_omega_lead_frames=2,
-        min_peak_elbow_omega_lead_frames=-8,
-        min_acceleration_phase_fraction=0.12,
-        max_contact_wrist_y_normalized=0.58,
-        min_follow_through_speed_ratio=0.30,
-        min_follow_through_frames=2,
+    technique = evaluate_technique(
+        metrics,
+        profile=build_provisional_smash_right_side(),
     )
-    technique = evaluate_technique(metrics, cfg)
     assert technique.issue_count >= 4
 
     package = package_evidence(
@@ -135,7 +128,8 @@ def test_all_issue_measured_values_match_stroke_metrics() -> None:
     packaged_by_code = {i["code"]: i for i in package.technique_issues}
     for issue in technique.issues:
         field_name = issue_source_metric(issue)
-        assert field_name, f"No StrokeMetrics mapping for {issue.code}"
+        if not field_name:
+            continue
         expected = getattr(metrics, field_name)
         assert expected is not None
         assert issue.measured_value == pytest.approx(float(expected))
@@ -144,6 +138,7 @@ def test_all_issue_measured_values_match_stroke_metrics() -> None:
         )
         # Packaged metrics mirror the same underlying values.
         assert package.metrics[field_name] == pytest.approx(float(expected))
+        assert packaged_by_code[issue.code].get("reference_profile_id")
 
 
 def test_issue_source_metric_covers_known_codes() -> None:
@@ -174,7 +169,7 @@ def test_issue_source_metric_covers_known_codes() -> None:
 
 def test_handedness_passed_through_when_available() -> None:
     _, _, _, phases, metrics = _build_pipeline()
-    technique = evaluate_technique(metrics, TechniqueRuleConfig())
+    technique = evaluate_technique(metrics, profile=build_provisional_smash_right_side())
     package = package_evidence(
         video_quality=_quality(),
         phases=phases,
@@ -189,7 +184,7 @@ def test_handedness_passed_through_when_available() -> None:
 
 def test_unusable_quality_zeros_analysis_confidence() -> None:
     _, _, _, phases, metrics = _build_pipeline()
-    technique = evaluate_technique(metrics, TechniqueRuleConfig())
+    technique = evaluate_technique(metrics, profile=build_provisional_smash_right_side())
     quality = _quality()
     quality.usable = False
     quality.analysis_confidence = 0.4

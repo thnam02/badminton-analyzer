@@ -14,7 +14,7 @@ from app.processing.motion import compute_motion_derivatives
 from app.processing.phases import detect_smash_phases
 from app.processing.stroke_metrics import compute_stroke_metrics
 from app.processing.technique import evaluate_technique
-from app.processing.technique_config import technique_rule_config_from_settings
+from app.processing.technique_config import reference_profile_from_settings
 from app.processing.temporal import preprocess_pose_sequence
 from app.processing.video_quality import assess_video_quality
 from app.schemas.pose import PoseFrame, PoseSequence
@@ -122,7 +122,10 @@ class PoseService:
         )
         technique_evaluation = evaluate_technique(
             stroke_metrics,
-            technique_rule_config_from_settings(),
+            profile=reference_profile_from_settings(
+                stroke_type="SMASH",
+                handedness=None,
+            ),
         )
         evidence_package = evidence_packager.package(
             video_quality=quality_report,
