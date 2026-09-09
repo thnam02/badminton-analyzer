@@ -88,6 +88,26 @@ def coaching_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_coaching.json")
 
 
+def _artifact_base_stem(video_path: Path) -> str:
+    """Strip trailing ``_pose`` so shuttle/mesh share the upload UUID stem."""
+    stem = video_path.stem
+    if stem.endswith("_pose"):
+        return stem[: -len("_pose")]
+    return stem
+
+
+def shuttle_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_shuttle.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_shuttle.json")
+
+
+def shuttle_debug_video_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_shuttle_debug.mp4."""
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_shuttle_debug.mp4"
+    )
+
+
 def probe_video_metadata(video_path: Path) -> tuple[float, int, int]:
     """Return (fps, width, height) from container metadata without decoding frames."""
     capture = cv2.VideoCapture(str(video_path))

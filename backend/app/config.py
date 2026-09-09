@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
 
+    # Independent shuttlecock tracking (does not alter pose / ESTIMATED_CONTACT)
+    shuttle_enabled: bool = False
+    shuttle_backend: str = "tracknetv3"  # tracknetv3 | heuristic
+    shuttle_tracknet_root: str = ""
+    shuttle_tracknet_weights: str = ""
+    shuttle_inpaintnet_weights: str = ""
+    shuttle_tracknet_large_video: bool = False
+    shuttle_keep_raw_csv: bool = False
+    shuttle_interp_max_gap: int = 3
+    shuttle_debug_trail_length: int = 16
+
     upload_dir: Path = ROOT_DIR / "uploads"
     output_dir: Path = ROOT_DIR / "outputs"
     cors_origins: str = "http://localhost:3000"

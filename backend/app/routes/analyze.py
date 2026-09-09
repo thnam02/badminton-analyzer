@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from app.config import settings
 from app.services.mesh_jobs import read_status
 from app.services.pose_service import pose_service
+from app.services.shuttle_service import shuttle_service
 from app.services.video_service import new_output_path, new_upload_path
 
 router = APIRouter(tags=["analyze"])
@@ -38,6 +39,7 @@ async def analyze(
     video: UploadFile = File(...),
     muscle_overlay: bool | None = Query(default=None),
     mesh_overlay: bool | None = Query(default=None),
+    shuttle_track: bool | None = Query(default=None),
 ) -> dict[str, str]:
     filename = video.filename or "upload.mp4"
     suffix = Path(filename).suffix.lower()
@@ -61,6 +63,8 @@ async def analyze(
     keyframes_json_path: Path | None = None
     evidence_json_path: Path | None = None
     coaching_json_path: Path | None = None
+    shuttle_json_path: Path | None = None
+    shuttle_debug_path: Path | None = None
     mesh_video_path: Path | None = None
     mesh_json_path: Path | None = None
     mesh_status_payload: dict | None = None
@@ -68,6 +72,9 @@ async def analyze(
     show_muscles = False
     del muscle_overlay
     run_mesh = settings.mesh_enabled if mesh_overlay is None else mesh_overlay
+    run_shuttle = (
+        settings.shuttle_enabled if shuttle_track is None else shuttle_track
+    )
 
     try:
         contents = await video.read()
@@ -108,6 +115,12 @@ async def analyze(
             muscle_overlay=False,
             mesh_overlay=run_mesh,
         )
+        # Independent CV module — runs after pose; does not change contact logic.
+        if run_shuttle and video_path is not None:
+            shuttle_json_path, shuttle_debug_path, _traj = shuttle_service.track_video(
+                upload_path,
+                video_path,
+            )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -118,6 +131,12 @@ async def analyze(
                 "and body models under vendor/WHAM/dataset/body_models. "
                 "Soft deps: pip install -r requirements.txt. "
                 "Analyze with mesh enabled reuses RTMPose tracks (no ViTPose)."
+            )
+        if run_shuttle and ("Shuttle" in detail or "TrackNet" in detail):
+            detail = (
+                f"{detail} — Shuttle tracking needs TrackNetV3 "
+                "(SHUTTLE_TRACKNET_ROOT + SHUTTLE_TRACKNET_WEIGHTS) "
+                "or SHUTTLE_BACKEND=heuristic."
             )
         raise HTTPException(status_code=500, detail=detail) from exc
     finally:
@@ -168,6 +187,15 @@ async def analyze(
         raise HTTPException(
             status_code=500, detail="Processing produced no coaching JSON"
         )
+    if run_shuttle:
+        if shuttle_json_path is None or not shuttle_json_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no shuttle JSON"
+            )
+        if shuttle_debug_path is None or not shuttle_debug_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no shuttle debug video"
+            )
 
     payload: dict[str, str] = {
         "output_path": str(video_path),
@@ -196,7 +224,13 @@ async def analyze(
         "coaching_json_url": f"/outputs/{coaching_json_path.name}",
         "muscle_overlay": str(show_muscles).lower(),
         "mesh_overlay": str(run_mesh).lower(),
+        "shuttle_track": str(run_shuttle).lower(),
     }
+    if run_shuttle and shuttle_json_path is not None and shuttle_debug_path is not None:
+        payload["shuttle_json_path"] = str(shuttle_json_path)
+        payload["shuttle_json_url"] = f"/outputs/{shuttle_json_path.name}"
+        payload["shuttle_debug_video_path"] = str(shuttle_debug_path)
+        payload["shuttle_debug_video_url"] = f"/outputs/{shuttle_debug_path.name}"
     if mesh_status_payload is not None:
         payload["mesh_status"] = str(mesh_status_payload.get("status", "pending"))
         payload["mesh_job_id"] = str(mesh_status_payload.get("job_id", ""))

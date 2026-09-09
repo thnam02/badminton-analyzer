@@ -22,6 +22,7 @@ from app.schemas.reference import (
     ReferenceEvidence,
     ReferenceProfile,
 )
+from app.schemas.shuttle import ShuttlePoint, ShuttleTrajectory
 from app.schemas.stroke import (
     AccelerationMetrics,
     BackswingMetrics,
@@ -74,6 +75,8 @@ __all__ = [
     "ReferenceProfile",
     "ReferenceRange",
     "STROKE_TYPE_SMASH",
+    "ShuttlePoint",
+    "ShuttleTrajectory",
     "SmashPhase",
     "Strength",
     "StrokeMetrics",
