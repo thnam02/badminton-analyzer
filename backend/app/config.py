@@ -80,6 +80,21 @@ class Settings(BaseSettings):
     shuttle_interp_max_gap: int = 3
     shuttle_debug_trail_length: int = 16
 
+    # Independent racket detection (optional; does not alter contact / coaching)
+    racket_enabled: bool = False
+    racket_backend: str = "pose_guided"  # pose_guided | yolo
+    racket_hitting_hand: str = ""  # LEFT | RIGHT | empty → infer from pose
+    racket_pose_confidence_threshold: float = 0.3
+    racket_shaft_length_frac: float = 0.18
+    racket_roi_pad_frac: float = 0.06
+    racket_yolo_weights: str = ""
+    racket_yolo_class_id: int = 0
+    racket_yolo_conf_threshold: float = 0.25
+    racket_track_enabled: bool = True
+    racket_track_max_gap: int = 3
+    racket_track_max_jump: float = 0.25
+    racket_debug_trail_length: int = 12
+
     upload_dir: Path = ROOT_DIR / "uploads"
     output_dir: Path = ROOT_DIR / "outputs"
     cors_origins: str = "http://localhost:3000"

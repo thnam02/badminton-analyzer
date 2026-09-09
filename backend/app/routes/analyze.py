@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from app.config import settings
 from app.services.mesh_jobs import read_status
 from app.services.pose_service import pose_service
+from app.services.racket_service import racket_service
 from app.services.shuttle_service import shuttle_service
 from app.services.video_service import new_output_path, new_upload_path
 
@@ -40,6 +41,7 @@ async def analyze(
     muscle_overlay: bool | None = Query(default=None),
     mesh_overlay: bool | None = Query(default=None),
     shuttle_track: bool | None = Query(default=None),
+    racket_track: bool | None = Query(default=None),
 ) -> dict[str, str]:
     filename = video.filename or "upload.mp4"
     suffix = Path(filename).suffix.lower()
@@ -65,6 +67,8 @@ async def analyze(
     coaching_json_path: Path | None = None
     shuttle_json_path: Path | None = None
     shuttle_debug_path: Path | None = None
+    racket_json_path: Path | None = None
+    racket_debug_path: Path | None = None
     mesh_video_path: Path | None = None
     mesh_json_path: Path | None = None
     mesh_status_payload: dict | None = None
@@ -74,6 +78,9 @@ async def analyze(
     run_mesh = settings.mesh_enabled if mesh_overlay is None else mesh_overlay
     run_shuttle = (
         settings.shuttle_enabled if shuttle_track is None else shuttle_track
+    )
+    run_racket = (
+        settings.racket_enabled if racket_track is None else racket_track
     )
 
     try:
@@ -99,7 +106,7 @@ async def analyze(
             mesh_json_path,
             mesh_status_payload,
             _raw_sequence,
-            _smoothed_sequence,
+            smoothed_sequence,
             _angle_sequence,
             _motion_sequence,
             _phase_sequence,
@@ -115,11 +122,18 @@ async def analyze(
             muscle_overlay=False,
             mesh_overlay=run_mesh,
         )
-        # Independent CV module — runs after pose; does not change contact logic.
+        # Independent CV modules — after pose; do not change contact logic.
         if run_shuttle and video_path is not None:
             shuttle_json_path, shuttle_debug_path, _traj = shuttle_service.track_video(
                 upload_path,
                 video_path,
+            )
+        if run_racket and video_path is not None:
+            racket_json_path, racket_debug_path, _racket = racket_service.track_video(
+                upload_path,
+                video_path,
+                pose=smoothed_sequence,
+                pose_json_path=smoothed_json_path,
             )
     except HTTPException:
         raise
@@ -137,6 +151,11 @@ async def analyze(
                 f"{detail} — Shuttle tracking needs TrackNetV3 "
                 "(SHUTTLE_TRACKNET_ROOT + SHUTTLE_TRACKNET_WEIGHTS) "
                 "or SHUTTLE_BACKEND=heuristic."
+            )
+        if run_racket and ("Racket" in detail or "racket" in detail):
+            detail = (
+                f"{detail} — Racket detection uses RACKET_BACKEND=pose_guided "
+                "(needs smoothed pose) or RACKET_YOLO_WEIGHTS."
             )
         raise HTTPException(status_code=500, detail=detail) from exc
     finally:
@@ -196,6 +215,15 @@ async def analyze(
             raise HTTPException(
                 status_code=500, detail="Processing produced no shuttle debug video"
             )
+    if run_racket:
+        if racket_json_path is None or not racket_json_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no racket JSON"
+            )
+        if racket_debug_path is None or not racket_debug_path.exists():
+            raise HTTPException(
+                status_code=500, detail="Processing produced no racket debug video"
+            )
 
     payload: dict[str, str] = {
         "output_path": str(video_path),
@@ -225,12 +253,18 @@ async def analyze(
         "muscle_overlay": str(show_muscles).lower(),
         "mesh_overlay": str(run_mesh).lower(),
         "shuttle_track": str(run_shuttle).lower(),
+        "racket_track": str(run_racket).lower(),
     }
     if run_shuttle and shuttle_json_path is not None and shuttle_debug_path is not None:
         payload["shuttle_json_path"] = str(shuttle_json_path)
         payload["shuttle_json_url"] = f"/outputs/{shuttle_json_path.name}"
         payload["shuttle_debug_video_path"] = str(shuttle_debug_path)
         payload["shuttle_debug_video_url"] = f"/outputs/{shuttle_debug_path.name}"
+    if run_racket and racket_json_path is not None and racket_debug_path is not None:
+        payload["racket_json_path"] = str(racket_json_path)
+        payload["racket_json_url"] = f"/outputs/{racket_json_path.name}"
+        payload["racket_debug_video_path"] = str(racket_debug_path)
+        payload["racket_debug_video_url"] = f"/outputs/{racket_debug_path.name}"
     if mesh_status_payload is not None:
         payload["mesh_status"] = str(mesh_status_payload.get("status", "pending"))
         payload["mesh_job_id"] = str(mesh_status_payload.get("job_id", ""))

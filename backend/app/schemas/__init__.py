@@ -22,6 +22,7 @@ from app.schemas.reference import (
     ReferenceEvidence,
     ReferenceProfile,
 )
+from app.schemas.racket import RacketBBox, RacketPoint, RacketTrajectory
 from app.schemas.shuttle import ShuttlePoint, ShuttleTrajectory
 from app.schemas.stroke import (
     AccelerationMetrics,
@@ -74,6 +75,9 @@ __all__ = [
     "ReferenceEvidence",
     "ReferenceProfile",
     "ReferenceRange",
+    "RacketBBox",
+    "RacketPoint",
+    "RacketTrajectory",
     "STROKE_TYPE_SMASH",
     "ShuttlePoint",
     "ShuttleTrajectory",
