@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     technique_min_follow_through_speed_ratio: float = 0.30
     technique_min_follow_through_frames: int = 2
 
+    # Optional OpenAI coaching layer (Responses API)
+    openai_coaching_enabled: bool = False
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
+
     upload_dir: Path = ROOT_DIR / "uploads"
     output_dir: Path = ROOT_DIR / "outputs"
     cors_origins: str = "http://localhost:3000"

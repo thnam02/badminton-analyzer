@@ -17,6 +17,9 @@ mmengine>=0.10.0,<1.0
 # (builds mmcv with ops when possible; installs mmdet/mmpose + shims).
 pytest>=8.0.0
 
+# Optional OpenAI coaching layer (Responses API + Structured Outputs)
+openai>=1.66.0
+
 # WHAM mesh recovery soft deps (RTMPose-track path; no ViTPose required)
 joblib>=1.3.0
 yacs>=0.1.8

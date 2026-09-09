@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.config import settings
+from app.ai.coaching import generate_coaching_report
 from app.cv.mmpose_estimator import MMPoseEstimator
 from app.cv.overlay import AnnotationRenderer
 from app.processing.angles import compute_angle_sequence
@@ -20,6 +21,7 @@ from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.evidence_packager import evidence_packager
 from app.services.video_service import (
     angles_json_path_for,
+    coaching_json_path_for,
     evidence_json_path_for,
     iter_video_frames,
     keyframes_dir_for,
@@ -131,6 +133,7 @@ class PoseService:
             # Handedness not detected yet; leave unset for the coaching layer.
             handedness=None,
         )
+        coaching_report = generate_coaching_report(evidence_package)
 
         pose_by_index = {f.frame_index: f for f in smoothed_sequence.frames}
         angle_by_index = {f.frame_index: f for f in angle_sequence.frames}
@@ -179,6 +182,7 @@ class PoseService:
         quality_json_path = video_quality_json_path_for(output_path)
         keyframes_json_path = keyframes_json_path_for(output_path)
         evidence_json_path = evidence_json_path_for(output_path)
+        coaching_json_path = coaching_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
@@ -189,6 +193,7 @@ class PoseService:
         quality_report.save_json(quality_json_path)
         keyframe_set.save_json(keyframes_json_path)
         evidence_package.save_json(evidence_json_path)
+        coaching_report.save_json(coaching_json_path)
         return (
             output_path,
             raw_json_path,
@@ -201,6 +206,7 @@ class PoseService:
             quality_json_path,
             keyframes_json_path,
             evidence_json_path,
+            coaching_json_path,
             mesh_video_path,
             mesh_json_path,
             mesh_status,
@@ -214,6 +220,7 @@ class PoseService:
             quality_report,
             keyframe_set,
             evidence_package,
+            coaching_report,
         )
 
 

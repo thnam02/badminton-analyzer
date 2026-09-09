@@ -1,4 +1,11 @@
 from app.schemas.angles import AngleFrame, AngleSequence
+from app.schemas.coaching import (
+    CoachingReport,
+    CoachingStatus,
+    DrillSuggestion,
+    PrioritizedIssue,
+    Strength,
+)
 from app.schemas.evidence import (
     CONTACT_TYPE_ESTIMATED,
     EVIDENCE_VERSION,
@@ -35,7 +42,10 @@ __all__ = [
     "CONTACT_MINUS_2",
     "CONTACT_PLUS_2",
     "CONTACT_TYPE_ESTIMATED",
+    "CoachingReport",
+    "CoachingStatus",
     "ContactEvidence",
+    "DrillSuggestion",
     "EVIDENCE_VERSION",
     "EstimatedContactMetrics",
     "EvidencePackage",
@@ -53,9 +63,11 @@ __all__ = [
     "PoseFrame",
     "PoseSequence",
     "PreparationMetrics",
+    "PrioritizedIssue",
     "ReferenceRange",
     "STROKE_TYPE_SMASH",
     "SmashPhase",
+    "Strength",
     "StrokeMetrics",
     "TechniqueEvaluation",
     "TechniqueIssue",
