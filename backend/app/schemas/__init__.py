@@ -18,15 +18,20 @@ from app.schemas.technique import (
     TechniqueIssue,
 )
 from app.schemas.video_quality import VideoQualityMetrics, VideoQualityReport
+from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, KeyframeSet
 
 __all__ = [
     "AccelerationMetrics",
     "AngleFrame",
     "AngleSequence",
     "BackswingMetrics",
+    "CONTACT_MINUS_2",
+    "CONTACT_PLUS_2",
     "EstimatedContactMetrics",
     "FollowThroughMetrics",
     "IssueSeverity",
+    "Keyframe",
+    "KeyframeSet",
     "Keypoint",
     "MotionFrame",
     "MotionSequence",

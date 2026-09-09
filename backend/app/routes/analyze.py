@@ -58,6 +58,7 @@ async def analyze(
     metrics_json_path: Path | None = None
     technique_json_path: Path | None = None
     quality_json_path: Path | None = None
+    keyframes_json_path: Path | None = None
     mesh_video_path: Path | None = None
     mesh_json_path: Path | None = None
     mesh_status_payload: dict | None = None
@@ -82,6 +83,7 @@ async def analyze(
             metrics_json_path,
             technique_json_path,
             quality_json_path,
+            keyframes_json_path,
             mesh_video_path,
             mesh_json_path,
             mesh_status_payload,
@@ -93,6 +95,7 @@ async def analyze(
             _stroke_metrics,
             _technique_evaluation,
             _quality_report,
+            _keyframe_set,
         ) = pose_service.analyze_video(
             upload_path,
             output_path,
@@ -147,6 +150,10 @@ async def analyze(
         raise HTTPException(
             status_code=500, detail="Processing produced no video quality JSON"
         )
+    if keyframes_json_path is None or not keyframes_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no keyframes JSON"
+        )
 
     payload: dict[str, str] = {
         "output_path": str(video_path),
@@ -167,6 +174,8 @@ async def analyze(
         "technique_json_url": f"/outputs/{technique_json_path.name}",
         "video_quality_json_path": str(quality_json_path),
         "video_quality_json_url": f"/outputs/{quality_json_path.name}",
+        "keyframes_json_path": str(keyframes_json_path),
+        "keyframes_json_url": f"/outputs/{keyframes_json_path.name}",
         "muscle_overlay": str(show_muscles).lower(),
         "mesh_overlay": str(run_mesh).lower(),
     }

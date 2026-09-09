@@ -8,6 +8,7 @@ from app.config import settings
 from app.cv.mmpose_estimator import MMPoseEstimator
 from app.cv.overlay import AnnotationRenderer
 from app.processing.angles import compute_angle_sequence
+from app.processing.keyframes import extract_keyframes
 from app.processing.motion import compute_motion_derivatives
 from app.processing.phases import detect_smash_phases
 from app.processing.stroke_metrics import compute_stroke_metrics
@@ -19,6 +20,8 @@ from app.schemas.pose import PoseFrame, PoseSequence
 from app.services.video_service import (
     angles_json_path_for,
     iter_video_frames,
+    keyframes_dir_for,
+    keyframes_json_path_for,
     motion_json_path_for,
     phases_json_path_for,
     pose_json_path_for,
@@ -100,6 +103,13 @@ class PoseService:
             angle_sequence,
             motion_sequence,
         )
+        keyframe_set = extract_keyframes(
+            input_path,
+            phase_sequence,
+            smoothed_sequence,
+            keyframes_dir_for(output_path),
+            include_contact_neighbors=True,
+        )
         stroke_metrics = compute_stroke_metrics(
             smoothed_sequence,
             angle_sequence,
@@ -156,6 +166,7 @@ class PoseService:
         metrics_json_path = stroke_metrics_json_path_for(output_path)
         technique_json_path = technique_json_path_for(output_path)
         quality_json_path = video_quality_json_path_for(output_path)
+        keyframes_json_path = keyframes_json_path_for(output_path)
         raw_sequence.save_json(raw_json_path)
         smoothed_sequence.save_json(smoothed_json_path)
         angle_sequence.save_json(angles_json_path)
@@ -164,6 +175,7 @@ class PoseService:
         stroke_metrics.save_json(metrics_json_path)
         technique_evaluation.save_json(technique_json_path)
         quality_report.save_json(quality_json_path)
+        keyframe_set.save_json(keyframes_json_path)
         return (
             output_path,
             raw_json_path,
@@ -174,6 +186,7 @@ class PoseService:
             metrics_json_path,
             technique_json_path,
             quality_json_path,
+            keyframes_json_path,
             mesh_video_path,
             mesh_json_path,
             mesh_status,
@@ -185,6 +198,7 @@ class PoseService:
             stroke_metrics,
             technique_evaluation,
             quality_report,
+            keyframe_set,
         )
 
 
