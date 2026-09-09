@@ -125,6 +125,27 @@ def contact_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{_artifact_base_stem(video_path)}_contact.json")
 
 
+def dataset_export_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_dataset.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_dataset.json")
+
+
+def annotation_template_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_annotation_template.json."""
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_annotation_template.json"
+    )
+
+
+def coach_annotation_json_path_for(video_path: Path, coach_id: str) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_annotation_{coach_id}.json."""
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in coach_id.strip())
+    safe = safe or "coach"
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_annotation_{safe}.json"
+    )
+
+
 def probe_video_metadata(video_path: Path) -> tuple[float, int, int]:
     """Return (fps, width, height) from container metadata without decoding frames."""
     capture = cv2.VideoCapture(str(video_path))

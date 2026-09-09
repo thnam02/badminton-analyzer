@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.config import settings
+from app.services.dataset_exporter import dataset_exporter
 from app.services.mesh_jobs import read_status
 from app.services.pose_service import pose_service
 from app.services.racket_service import racket_service
@@ -66,6 +67,8 @@ async def analyze(
     evidence_json_path: Path | None = None
     coaching_json_path: Path | None = None
     contact_json_path: Path | None = None
+    dataset_json_path: Path | None = None
+    annotation_template_json_path: Path | None = None
     shuttle_json_path: Path | None = None
     shuttle_debug_path: Path | None = None
     racket_json_path: Path | None = None
@@ -168,6 +171,24 @@ async def analyze(
                 racket=racket_traj,
                 kinematic_phases=phase_sequence,
             )
+        # Label-ready export only — does not recompute CV / metrics / coaching.
+        if video_path is not None:
+            dataset_json_path, annotation_template_json_path, _export = (
+                dataset_exporter.export_analysis(
+                    output_stem=video_path,
+                    phases_json_path=phases_json_path,
+                    metrics_json_path=metrics_json_path,
+                    contact_json_path=contact_json_path,
+                    technique_json_path=technique_json_path,
+                    keyframes_json_path=keyframes_json_path,
+                    quality_json_path=quality_json_path,
+                    evidence_json_path=evidence_json_path,
+                    pose_json_path=raw_json_path,
+                    smoothed_pose_json_path=smoothed_json_path,
+                    shuttle_json_path=shuttle_json_path,
+                    racket_json_path=racket_json_path,
+                )
+            )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -243,6 +264,18 @@ async def analyze(
         raise HTTPException(
             status_code=500, detail="Processing produced no contact JSON"
         )
+    if dataset_json_path is None or not dataset_json_path.exists():
+        raise HTTPException(
+            status_code=500, detail="Processing produced no dataset export JSON"
+        )
+    if (
+        annotation_template_json_path is None
+        or not annotation_template_json_path.exists()
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail="Processing produced no annotation template JSON",
+        )
     if run_shuttle:
         if shuttle_json_path is None or not shuttle_json_path.exists():
             raise HTTPException(
@@ -289,6 +322,12 @@ async def analyze(
         "coaching_json_url": f"/outputs/{coaching_json_path.name}",
         "contact_json_path": str(contact_json_path),
         "contact_json_url": f"/outputs/{contact_json_path.name}",
+        "dataset_json_path": str(dataset_json_path),
+        "dataset_json_url": f"/outputs/{dataset_json_path.name}",
+        "annotation_template_json_path": str(annotation_template_json_path),
+        "annotation_template_json_url": (
+            f"/outputs/{annotation_template_json_path.name}"
+        ),
         "muscle_overlay": str(show_muscles).lower(),
         "mesh_overlay": str(run_mesh).lower(),
         "shuttle_track": str(run_shuttle).lower(),

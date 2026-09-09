@@ -6,6 +6,13 @@ from app.schemas.coaching import (
     PrioritizedIssue,
     Strength,
 )
+from app.schemas.annotation import (
+    ANNOTATION_SCHEMA_VERSION,
+    CoachAnnotation,
+    CoachAnnotationSet,
+    QualityRating,
+    QualityScore,
+)
 from app.schemas.contact import (
     CONTACT_TYPE_ESTIMATED,
     CONTACT_TYPE_KINEMATIC,
@@ -13,6 +20,7 @@ from app.schemas.contact import (
     ContactEvent,
     ContactSignalEvidence,
 )
+from app.schemas.dataset import DATASET_EXPORT_VERSION, DatasetExport
 from app.schemas.evidence import (
     EVIDENCE_VERSION,
     STROKE_TYPE_SMASH,
@@ -48,6 +56,7 @@ from app.schemas.technique import (
 from app.schemas.video_quality import VideoQualityMetrics, VideoQualityReport
 
 __all__ = [
+    "ANNOTATION_SCHEMA_VERSION",
     "AccelerationMetrics",
     "AngleFrame",
     "AngleSequence",
@@ -57,11 +66,15 @@ __all__ = [
     "CONTACT_TYPE_ESTIMATED",
     "CONTACT_TYPE_KINEMATIC",
     "CONTACT_TYPE_TRACKED",
+    "CoachAnnotation",
+    "CoachAnnotationSet",
     "CoachingReport",
     "CoachingStatus",
     "ContactEvent",
     "ContactEvidence",
     "ContactSignalEvidence",
+    "DATASET_EXPORT_VERSION",
+    "DatasetExport",
     "DrillSuggestion",
     "EVIDENCE_VERSION",
     "EstimatedContactMetrics",
@@ -82,6 +95,8 @@ __all__ = [
     "PoseSequence",
     "PreparationMetrics",
     "PrioritizedIssue",
+    "QualityRating",
+    "QualityScore",
     "ReferenceEvidence",
     "ReferenceProfile",
     "ReferenceRange",

@@ -6,11 +6,14 @@
 badminton-analytics/
 ├── frontend/          # Next.js (TypeScript + Tailwind)
 ├── backend/           # FastAPI + OpenCV + MMPose
+├── docs/              # dataset export & coach annotation guide
 ├── uploads/           # temporary uploads
-├── outputs/           # processed videos
+├── outputs/           # processed videos + JSON artifacts
 ├── .env.example
 └── README.md
 ```
+
+Coach labeling / dataset export: see [docs/dataset-annotations.md](docs/dataset-annotations.md).
 
 ## 1. Install frontend dependencies
 
