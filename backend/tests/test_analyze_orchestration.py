@@ -13,6 +13,7 @@ from app.cv.overlay import AnnotationRenderer
 from app.processing.phases import detect_smash_phases
 from app.processing.video_quality import assess_video_quality
 from app.schemas.contact import CONTACT_TYPE_KINEMATIC, CONTACT_TYPE_TRACKED
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.phases import SmashPhase
 from app.services.dataset_exporter import DatasetExporter
 from app.services.pose_service import PoseKinematics, PoseService, _kinematic_contact_event
@@ -109,29 +110,25 @@ def test_finalize_uses_resolved_contact_for_all_downstream(
         mesh_overlay=False,
     )
 
-    output_path = result[0]
-    phases_json_path = result[5]
-    metrics_json_path = result[6]
-    technique_json_path = result[7]
-    keyframes_json_path = result[9]
-    evidence_json_path = result[10]
-    coaching_json_path = result[11]
-    contact_json_path = result[12]
-    phase_sequence = result[20]
-    stroke_metrics = result[21]
-    technique_evaluation = result[22]
-    keyframe_set = result[24]
-    evidence_package = result[25]
-    coaching_report = result[26]
-    contact_event = result[27]
+    final_state = result.final_state
+    assert isinstance(final_state, FinalAnalysisState)
+    contact_event = final_state.contact
+    phase_sequence = final_state.phases
+    stroke_metrics = result.stroke_metrics
+    technique_evaluation = result.technique_evaluation
+    keyframe_set = result.keyframe_set
+    evidence_package = result.evidence_package
+    coaching_report = result.coaching_report
 
     assert contact_event.contact_type == CONTACT_TYPE_TRACKED
     assert contact_event.frame_index == tracked
     assert contact_event.kinematic_frame_index == kinematic
 
-    # Final phase re-snap
+    # Final phase re-snap locked into FinalAnalysisState
     assert phase_sequence.estimated_contact_frame_index == tracked
     assert phase_sequence.phase_at(tracked) is SmashPhase.ESTIMATED_CONTACT
+    assert final_state.contact_frame_index == tracked
+    assert final_state.phase_contact_frame_index == tracked
 
     # Stroke metrics / technique use resolved contact frame measurements
     assert stroke_metrics.estimated_contact_frame_index == tracked
@@ -160,29 +157,32 @@ def test_finalize_uses_resolved_contact_for_all_downstream(
     assert all(p is SmashPhase.ESTIMATED_CONTACT for p in overlay_phases)
 
     # On-disk artifacts agree (single write; no stale kinematic rewrite)
-    contact_disk = json.loads(contact_json_path.read_text(encoding="utf-8"))
-    phases_disk = json.loads(phases_json_path.read_text(encoding="utf-8"))
-    metrics_disk = json.loads(metrics_json_path.read_text(encoding="utf-8"))
-    evidence_disk = json.loads(evidence_json_path.read_text(encoding="utf-8"))
-    keyframes_disk = json.loads(keyframes_json_path.read_text(encoding="utf-8"))
+    contact_disk = json.loads(result.contact_json_path.read_text(encoding="utf-8"))
+    phases_disk = json.loads(result.phases_json_path.read_text(encoding="utf-8"))
+    metrics_disk = json.loads(result.metrics_json_path.read_text(encoding="utf-8"))
+    evidence_disk = json.loads(result.evidence_json_path.read_text(encoding="utf-8"))
+    keyframes_disk = json.loads(result.keyframes_json_path.read_text(encoding="utf-8"))
     assert contact_disk["frame_index"] == tracked
     assert phases_disk["estimated_contact_frame_index"] == tracked
     assert metrics_disk["estimated_contact_frame_index"] == tracked
     assert evidence_disk["contact"]["frame_index"] == tracked
     assert any(kf["frame_index"] == tracked for kf in keyframes_disk["keyframes"])
-    assert technique_json_path.is_file()
-    assert coaching_json_path.is_file()
-    assert output_path.is_file()
+    assert result.technique_json_path.is_file()
+    assert result.coaching_json_path.is_file()
+    assert result.output_path.is_file()
 
-    # Dataset export reads the same final contact state
-    dataset_path, _template, export = DatasetExporter().export_analysis(
-        output_stem=output_path,
-        phases_json_path=phases_json_path,
-        metrics_json_path=metrics_json_path,
-        contact_json_path=contact_json_path,
-        technique_json_path=technique_json_path,
-        keyframes_json_path=keyframes_json_path,
-        evidence_json_path=evidence_json_path,
+    # Dataset export from the same FinalAnalysisState
+    dataset_path, _template, export = DatasetExporter().export_from_final(
+        final_state,
+        metrics=stroke_metrics,
+        technique=technique_evaluation,
+        keyframes=keyframe_set,
+        phases_json_path=result.phases_json_path,
+        metrics_json_path=result.metrics_json_path,
+        contact_json_path=result.contact_json_path,
+        technique_json_path=result.technique_json_path,
+        keyframes_json_path=result.keyframes_json_path,
+        evidence_json_path=result.evidence_json_path,
     )
     assert dataset_path.is_file()
     assert export.contact_event["frame_index"] == tracked
@@ -212,10 +212,10 @@ def test_finalize_without_tracks_keeps_kinematic_contact(
     result = PoseService().finalize_analysis(
         kin, shuttle=None, racket=None, mesh_overlay=False
     )
-    contact_event = result[27]
-    phase_sequence = result[20]
-    stroke_metrics = result[21]
-    evidence_package = result[25]
+    contact_event = result.final_state.contact
+    phase_sequence = result.final_state.phases
+    stroke_metrics = result.stroke_metrics
+    evidence_package = result.evidence_package
 
     assert contact_event.contact_type == CONTACT_TYPE_KINEMATIC
     assert contact_event.frame_index == kinematic

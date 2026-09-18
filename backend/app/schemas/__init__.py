@@ -27,6 +27,13 @@ from app.schemas.evidence import (
     ContactEvidence,
     EvidencePackage,
 )
+from app.schemas.final_analysis import (
+    FinalAnalysisState,
+    FinalAnalysisStateError,
+    IntermediateAnalysisSnapshot,
+    build_final_analysis_state,
+    validate_final_analysis_state,
+)
 from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, KeyframeSet
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
@@ -79,7 +86,10 @@ __all__ = [
     "EVIDENCE_VERSION",
     "EstimatedContactMetrics",
     "EvidencePackage",
+    "FinalAnalysisState",
+    "FinalAnalysisStateError",
     "FollowThroughMetrics",
+    "IntermediateAnalysisSnapshot",
     "IssueSeverity",
     "Keyframe",
     "KeyframeSet",
@@ -113,4 +123,6 @@ __all__ = [
     "TechniqueIssue",
     "VideoQualityMetrics",
     "VideoQualityReport",
+    "build_final_analysis_state",
+    "validate_final_analysis_state",
 ]

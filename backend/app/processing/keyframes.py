@@ -13,6 +13,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.keyframes import (
     CONTACT_MINUS_2,
     CONTACT_PLUS_2,
@@ -127,6 +128,22 @@ def select_keyframe_indices(
     return selections
 
 
+def extract_keyframes_from_final(
+    state: FinalAnalysisState,
+    output_dir: Path,
+    *,
+    include_contact_neighbors: bool = True,
+) -> KeyframeSet:
+    """Extract keyframes using only final phases / pose from ``FinalAnalysisState``."""
+    return extract_keyframes(
+        state.input_path,
+        state.phases,
+        state.smoothed_pose,
+        output_dir,
+        include_contact_neighbors=include_contact_neighbors,
+    )
+
+
 def extract_keyframes(
     video_path: Path,
     phases: PhaseSequence,
@@ -135,7 +152,10 @@ def extract_keyframes(
     *,
     include_contact_neighbors: bool = True,
 ) -> KeyframeSet:
-    """Select keyframes, save raw BGR frames as JPEGs, return ``KeyframeSet``."""
+    """Select keyframes, save raw BGR frames as JPEGs, return ``KeyframeSet``.
+
+    Prefer ``extract_keyframes_from_final`` after contact resolution.
+    """
     selections = select_keyframe_indices(
         phases,
         pose,

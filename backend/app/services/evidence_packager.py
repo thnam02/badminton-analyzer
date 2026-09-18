@@ -13,6 +13,7 @@ from app.schemas.evidence import (
     ContactEvidence,
     EvidencePackage,
 )
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.keyframes import KeyframeSet
 from app.schemas.phases import PhaseSequence, SmashPhase
 from app.schemas.stroke_metrics import StrokeMetrics
@@ -47,6 +48,34 @@ def issue_source_metric(issue: TechniqueIssue) -> str:
 
 class EvidencePackager:
     """Coaching-facing evidence assembler (pure data merge)."""
+
+    def package_from_final(
+        self,
+        state: FinalAnalysisState,
+        *,
+        metrics: StrokeMetrics,
+        technique: TechniqueEvaluation,
+        keyframes: KeyframeSet,
+        stroke_type: str = STROKE_TYPE_SMASH,
+        handedness: str | None = None,
+        evidence_version: str = EVIDENCE_VERSION,
+    ) -> EvidencePackage:
+        """Build evidence exclusively from ``FinalAnalysisState`` + derived artifacts."""
+        if metrics.estimated_contact_frame_index != state.contact.frame_index:
+            raise ValueError(
+                "StrokeMetrics contact must match FinalAnalysisState.contact."
+            )
+        return self.package(
+            video_quality=state.video_quality,
+            phases=state.phases,
+            metrics=metrics,
+            technique=technique,
+            keyframes=keyframes,
+            stroke_type=stroke_type,
+            handedness=handedness,
+            evidence_version=evidence_version,
+            contact=state.contact,
+        )
 
     def package(
         self,
@@ -91,6 +120,26 @@ class EvidencePackager:
             keyframes=[kf.to_dict() for kf in keyframes.keyframes],
             keyframes_output_dir=keyframes.output_dir or None,
         )
+
+
+def package_evidence_from_final(
+    state: FinalAnalysisState,
+    *,
+    metrics: StrokeMetrics,
+    technique: TechniqueEvaluation,
+    keyframes: KeyframeSet,
+    stroke_type: str = STROKE_TYPE_SMASH,
+    handedness: str | None = None,
+) -> EvidencePackage:
+    """Module-level convenience wrapper around ``EvidencePackager.package_from_final``."""
+    return EvidencePackager().package_from_final(
+        state,
+        metrics=metrics,
+        technique=technique,
+        keyframes=keyframes,
+        stroke_type=stroke_type,
+        handedness=handedness,
+    )
 
 
 def package_evidence(

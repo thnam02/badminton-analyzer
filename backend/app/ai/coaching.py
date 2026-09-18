@@ -23,6 +23,7 @@ from app.schemas.coaching import (
     Strength,
 )
 from app.schemas.evidence import EvidencePackage
+from app.schemas.final_analysis import FinalAnalysisState
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,33 @@ class CoachingParseError(RuntimeError):
 def is_coaching_configured() -> bool:
     """True when env enables coaching and an API key is present."""
     return bool(settings.openai_coaching_enabled and settings.openai_api_key.strip())
+
+
+def generate_coaching_report_from_final(
+    state: FinalAnalysisState,
+    evidence: EvidencePackage,
+    *,
+    include_keyframes: bool = True,
+) -> CoachingReport:
+    """Generate coaching from evidence packaged against ``FinalAnalysisState``.
+
+    Does not change OpenAI behavior — only asserts contact/phase identity so
+    coaching cannot silently use a stale contact frame.
+    """
+    if evidence.contact.frame_index != state.contact.frame_index:
+        raise ValueError(
+            "EvidencePackage contact must match FinalAnalysisState.contact; "
+            f"got evidence={evidence.contact.frame_index}, "
+            f"state={state.contact.frame_index}."
+        )
+    if evidence.contact.contact_type != state.contact.contact_type:
+        raise ValueError(
+            "EvidencePackage contact_type must match FinalAnalysisState.contact."
+        )
+    return generate_coaching_report(
+        evidence,
+        include_keyframes=include_keyframes,
+    )
 
 
 def generate_coaching_report(

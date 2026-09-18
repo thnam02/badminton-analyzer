@@ -119,61 +119,50 @@ async def analyze(
                 pose_json_path=None,
             )
 
-        # 9–17: resolve final contact once → metrics → … → annotated video (+ async mesh).
-        (
-            video_path,
-            raw_json_path,
-            smoothed_json_path,
-            angles_json_path,
-            motion_json_path,
-            phases_json_path,
-            metrics_json_path,
-            technique_json_path,
-            quality_json_path,
-            keyframes_json_path,
-            evidence_json_path,
-            coaching_json_path,
-            contact_json_path,
-            mesh_video_path,
-            mesh_json_path,
-            mesh_status_payload,
-            _raw_sequence,
-            _smoothed_sequence,
-            _angle_sequence,
-            _motion_sequence,
-            _phase_sequence,
-            _stroke_metrics,
-            _technique_evaluation,
-            _quality_report,
-            _keyframe_set,
-            _evidence_package,
-            _coaching_report,
-            _contact_event,
-        ) = pose_service.finalize_analysis(
+        # 9–17: resolve final contact once → FinalAnalysisState → metrics → … → video.
+        finalized = pose_service.finalize_analysis(
             kinematics,
             shuttle=shuttle_traj,
             racket=racket_traj,
             mesh_overlay=run_mesh,
         )
+        video_path = finalized.output_path
+        raw_json_path = finalized.raw_json_path
+        smoothed_json_path = finalized.smoothed_json_path
+        angles_json_path = finalized.angles_json_path
+        motion_json_path = finalized.motion_json_path
+        phases_json_path = finalized.phases_json_path
+        metrics_json_path = finalized.metrics_json_path
+        technique_json_path = finalized.technique_json_path
+        quality_json_path = finalized.quality_json_path
+        keyframes_json_path = finalized.keyframes_json_path
+        evidence_json_path = finalized.evidence_json_path
+        coaching_json_path = finalized.coaching_json_path
+        contact_json_path = finalized.contact_json_path
+        mesh_video_path = finalized.mesh_video_path
+        mesh_json_path = finalized.mesh_json_path
+        mesh_status_payload = finalized.mesh_status
 
-        # 18: dataset export only after the single final contact/phase state is on disk.
-        if video_path is not None:
-            dataset_json_path, annotation_template_json_path, _export = (
-                dataset_exporter.export_analysis(
-                    output_stem=video_path,
-                    phases_json_path=phases_json_path,
-                    metrics_json_path=metrics_json_path,
-                    contact_json_path=contact_json_path,
-                    technique_json_path=technique_json_path,
-                    keyframes_json_path=keyframes_json_path,
-                    quality_json_path=quality_json_path,
-                    evidence_json_path=evidence_json_path,
-                    pose_json_path=raw_json_path,
-                    smoothed_pose_json_path=smoothed_json_path,
-                    shuttle_json_path=shuttle_json_path,
-                    racket_json_path=racket_json_path,
-                )
+        # 18: dataset export from the same FinalAnalysisState (no stale contact/phases).
+        dataset_json_path, annotation_template_json_path, _export = (
+            dataset_exporter.export_from_final(
+                finalized.final_state,
+                metrics=finalized.stroke_metrics,
+                technique=finalized.technique_evaluation,
+                keyframes=finalized.keyframe_set,
+                phases_json_path=phases_json_path,
+                metrics_json_path=metrics_json_path,
+                contact_json_path=contact_json_path,
+                technique_json_path=technique_json_path,
+                keyframes_json_path=keyframes_json_path,
+                quality_json_path=quality_json_path,
+                evidence_json_path=evidence_json_path,
+                pose_json_path=raw_json_path,
+                smoothed_pose_json_path=smoothed_json_path,
+                shuttle_json_path=shuttle_json_path,
+                racket_json_path=racket_json_path,
             )
+        )
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001

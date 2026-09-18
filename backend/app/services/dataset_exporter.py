@@ -17,6 +17,10 @@ from app.schemas.dataset import (
     blank_annotation_template,
     utc_now_iso,
 )
+from app.schemas.final_analysis import FinalAnalysisState
+from app.schemas.keyframes import KeyframeSet
+from app.schemas.stroke_metrics import StrokeMetrics
+from app.schemas.technique import TechniqueEvaluation
 from app.services.video_service import (
     _artifact_base_stem,
     annotation_template_json_path_for,
@@ -28,6 +32,57 @@ logger = logging.getLogger(__name__)
 
 class DatasetExporter:
     """Build label-ready exports from on-disk (or in-memory) analysis JSON."""
+
+    def export_from_final(
+        self,
+        state: FinalAnalysisState,
+        *,
+        metrics: StrokeMetrics,
+        technique: TechniqueEvaluation,
+        keyframes: KeyframeSet,
+        phases_json_path: Path | None = None,
+        metrics_json_path: Path | None = None,
+        contact_json_path: Path | None = None,
+        technique_json_path: Path | None = None,
+        keyframes_json_path: Path | None = None,
+        quality_json_path: Path | None = None,
+        evidence_json_path: Path | None = None,
+        pose_json_path: Path | None = None,
+        smoothed_pose_json_path: Path | None = None,
+        shuttle_json_path: Path | None = None,
+        racket_json_path: Path | None = None,
+        stroke_type: str = "SMASH",
+    ) -> tuple[Path, Path, DatasetExport]:
+        """Export using contact / phases / quality from ``FinalAnalysisState``."""
+        return self.export_analysis(
+            output_stem=state.output_path,
+            video_metadata={
+                "video": state.video,
+                "fps": state.video_fps,
+                "width": state.video_width,
+                "height": state.video_height,
+                "usable": state.video_quality.usable,
+                "analysis_confidence": state.video_quality.analysis_confidence,
+            },
+            phases=state.phases.to_dict(),
+            metrics=metrics.to_dict(),
+            contact=state.contact.to_dict(),
+            technique=technique.to_dict(),
+            keyframes=keyframes.to_dict(),
+            video_quality=state.video_quality.to_dict(),
+            phases_json_path=phases_json_path,
+            metrics_json_path=metrics_json_path,
+            contact_json_path=contact_json_path,
+            technique_json_path=technique_json_path,
+            keyframes_json_path=keyframes_json_path,
+            quality_json_path=quality_json_path,
+            evidence_json_path=evidence_json_path,
+            pose_json_path=pose_json_path,
+            smoothed_pose_json_path=smoothed_pose_json_path,
+            shuttle_json_path=shuttle_json_path,
+            racket_json_path=racket_json_path,
+            stroke_type=stroke_type,
+        )
 
     def export_analysis(
         self,

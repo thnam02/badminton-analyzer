@@ -16,6 +16,7 @@ from app.processing.reference_profiles import (
     select_reference_profile,
 )
 from app.processing.technique_config import TechniqueSeverityConfig
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.phases import SmashPhase
 from app.schemas.reference import MetricReference, ReferenceEvidence, ReferenceProfile
 from app.schemas.stroke_metrics import StrokeMetrics
@@ -25,6 +26,37 @@ from app.schemas.technique import (
     TechniqueEvaluation,
     TechniqueIssue,
 )
+
+
+def evaluate_technique_from_final(
+    state: FinalAnalysisState,
+    metrics: StrokeMetrics,
+    config: TechniqueSeverityConfig | None = None,
+    *,
+    profile: ReferenceProfile | None = None,
+    stroke_type: str = "SMASH",
+    handedness: str | None = None,
+    camera_view: str | None = None,
+) -> TechniqueEvaluation:
+    """Evaluate technique using metrics derived from ``FinalAnalysisState``.
+
+    ``metrics`` must come from ``compute_stroke_metrics_from_final(state)`` (or
+    equivalent) so contact/phase boundaries match the canonical final state.
+    """
+    if metrics.estimated_contact_frame_index != state.contact.frame_index:
+        raise ValueError(
+            "StrokeMetrics contact frame must match FinalAnalysisState.contact; "
+            f"got metrics={metrics.estimated_contact_frame_index}, "
+            f"state={state.contact.frame_index}."
+        )
+    return evaluate_technique(
+        metrics,
+        config,
+        profile=profile,
+        stroke_type=stroke_type,
+        handedness=handedness,
+        camera_view=camera_view,
+    )
 
 
 def evaluate_technique(
