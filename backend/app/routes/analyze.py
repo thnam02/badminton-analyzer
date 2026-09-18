@@ -44,6 +44,14 @@ async def analyze(
     shuttle_track: bool | None = Query(default=None),
     racket_track: bool | None = Query(default=None),
 ) -> dict[str, str]:
+    """Run analysis with measurements finalized before evidence/coaching/render/export.
+
+    Order: RTMPose → temporal → quality → angles/motion → initial phases →
+    kinematic contact → optional shuttle → optional racket → ContactResolver →
+    final contact / phase re-snap → metrics → technique → keyframes → evidence →
+    coaching → annotated video → dataset export. WHAM mesh stays an independent
+    async debug job.
+    """
     filename = video.filename or "upload.mp4"
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -93,6 +101,25 @@ async def analyze(
             raise HTTPException(status_code=400, detail="Empty upload")
         upload_path.write_bytes(contents)
 
+        # 1–6: pose measurements through kinematic contact candidate only.
+        kinematics = pose_service.compute_pose_kinematics(upload_path, output_path)
+
+        # 7–8: optional tracks (before ContactResolver / any downstream artifacts).
+        shuttle_traj = None
+        racket_traj = None
+        if run_shuttle:
+            shuttle_json_path, shuttle_debug_path, shuttle_traj = (
+                shuttle_service.track_video(upload_path, output_path)
+            )
+        if run_racket:
+            racket_json_path, racket_debug_path, racket_traj = racket_service.track_video(
+                upload_path,
+                output_path,
+                pose=kinematics.smoothed_sequence,
+                pose_json_path=None,
+            )
+
+        # 9–17: resolve final contact once → metrics → … → annotated video (+ async mesh).
         (
             video_path,
             raw_json_path,
@@ -111,67 +138,25 @@ async def analyze(
             mesh_json_path,
             mesh_status_payload,
             _raw_sequence,
-            smoothed_sequence,
-            angle_sequence,
-            motion_sequence,
-            phase_sequence,
+            _smoothed_sequence,
+            _angle_sequence,
+            _motion_sequence,
+            _phase_sequence,
             _stroke_metrics,
             _technique_evaluation,
-            quality_report,
+            _quality_report,
             _keyframe_set,
             _evidence_package,
             _coaching_report,
             _contact_event,
-        ) = pose_service.analyze_video(
-            upload_path,
-            output_path,
-            muscle_overlay=False,
+        ) = pose_service.finalize_analysis(
+            kinematics,
+            shuttle=shuttle_traj,
+            racket=racket_traj,
             mesh_overlay=run_mesh,
         )
-        shuttle_traj = None
-        racket_traj = None
-        if run_shuttle and video_path is not None:
-            shuttle_json_path, shuttle_debug_path, shuttle_traj = (
-                shuttle_service.track_video(upload_path, video_path)
-            )
-        if run_racket and video_path is not None:
-            racket_json_path, racket_debug_path, racket_traj = racket_service.track_video(
-                upload_path,
-                video_path,
-                pose=smoothed_sequence,
-                pose_json_path=smoothed_json_path,
-            )
-        # Resolve tracked vs kinematic contact; snap metrics when trajectories exist.
-        if (
-            video_path is not None
-            and (shuttle_traj is not None or racket_traj is not None)
-            and phases_json_path is not None
-            and metrics_json_path is not None
-            and technique_json_path is not None
-            and keyframes_json_path is not None
-            and evidence_json_path is not None
-            and coaching_json_path is not None
-            and contact_json_path is not None
-        ):
-            pose_service.apply_resolved_contact(
-                input_path=upload_path,
-                output_path=video_path,
-                pose=smoothed_sequence,
-                angles=angle_sequence,
-                motion=motion_sequence,
-                quality_report=quality_report,
-                phases_json_path=phases_json_path,
-                metrics_json_path=metrics_json_path,
-                technique_json_path=technique_json_path,
-                keyframes_json_path=keyframes_json_path,
-                evidence_json_path=evidence_json_path,
-                coaching_json_path=coaching_json_path,
-                contact_json_path=contact_json_path,
-                shuttle=shuttle_traj,
-                racket=racket_traj,
-                kinematic_phases=phase_sequence,
-            )
-        # Label-ready export only — does not recompute CV / metrics / coaching.
+
+        # 18: dataset export only after the single final contact/phase state is on disk.
         if video_path is not None:
             dataset_json_path, annotation_template_json_path, _export = (
                 dataset_exporter.export_analysis(
@@ -346,7 +331,9 @@ async def analyze(
     if mesh_status_payload is not None:
         payload["mesh_status"] = str(mesh_status_payload.get("status", "pending"))
         payload["mesh_job_id"] = str(mesh_status_payload.get("job_id", ""))
-        payload["mesh_status_url"] = f"/mesh-status/{mesh_status_payload.get('job_id', '')}"
+        payload["mesh_status_url"] = (
+            f"/mesh-status/{mesh_status_payload.get('job_id', '')}"
+        )
         if mesh_status_payload.get("mesh_video_url"):
             payload["mesh_video_url"] = str(mesh_status_payload["mesh_video_url"])
         if mesh_status_payload.get("mesh_json_url"):
