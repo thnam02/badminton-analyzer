@@ -16,9 +16,15 @@ from app.schemas.evidence import (
 from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.keyframes import KeyframeSet
 from app.schemas.phases import PhaseSequence, SmashPhase
+from app.schemas.provenance import (
+    AnalysisSnapshot,
+    apply_provenance,
+    validate_object_provenance,
+)
 from app.schemas.stroke_metrics import StrokeMetrics
 from app.schemas.technique import TechniqueEvaluation, TechniqueIssue
 from app.schemas.video_quality import VideoQualityReport
+
 
 # Maps technique issue codes → StrokeMetrics field that supplies measured_value.
 # Timing / follow-through may use a secondary field when the primary is absent;
@@ -56,16 +62,20 @@ class EvidencePackager:
         metrics: StrokeMetrics,
         technique: TechniqueEvaluation,
         keyframes: KeyframeSet,
+        snapshot: AnalysisSnapshot,
         stroke_type: str = STROKE_TYPE_SMASH,
         handedness: str | None = None,
         evidence_version: str = EVIDENCE_VERSION,
     ) -> EvidencePackage:
         """Build evidence exclusively from ``FinalAnalysisState`` + derived artifacts."""
+        validate_object_provenance(metrics, snapshot)
+        validate_object_provenance(technique, snapshot)
+        validate_object_provenance(keyframes, snapshot)
         if metrics.estimated_contact_frame_index != state.contact.frame_index:
             raise ValueError(
                 "StrokeMetrics contact must match FinalAnalysisState.contact."
             )
-        return self.package(
+        package = self.package(
             video_quality=state.video_quality,
             phases=state.phases,
             metrics=metrics,
@@ -76,6 +86,14 @@ class EvidencePackager:
             evidence_version=evidence_version,
             contact=state.contact,
         )
+        apply_provenance(
+            package,
+            snapshot,
+            artifact_schema_version=evidence_version,
+        )
+        validate_object_provenance(package, snapshot)
+        return package
+
 
     def package(
         self,
@@ -128,6 +146,7 @@ def package_evidence_from_final(
     metrics: StrokeMetrics,
     technique: TechniqueEvaluation,
     keyframes: KeyframeSet,
+    snapshot: AnalysisSnapshot,
     stroke_type: str = STROKE_TYPE_SMASH,
     handedness: str | None = None,
 ) -> EvidencePackage:
@@ -137,6 +156,7 @@ def package_evidence_from_final(
         metrics=metrics,
         technique=technique,
         keyframes=keyframes,
+        snapshot=snapshot,
         stroke_type=stroke_type,
         handedness=handedness,
     )

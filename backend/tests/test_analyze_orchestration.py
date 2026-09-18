@@ -177,6 +177,7 @@ def test_finalize_uses_resolved_contact_for_all_downstream(
         metrics=stroke_metrics,
         technique=technique_evaluation,
         keyframes=keyframe_set,
+        snapshot=result.snapshot,
         phases_json_path=result.phases_json_path,
         metrics_json_path=result.metrics_json_path,
         contact_json_path=result.contact_json_path,
@@ -189,10 +190,26 @@ def test_finalize_uses_resolved_contact_for_all_downstream(
     assert export.contact_event["contact_type"] == CONTACT_TYPE_TRACKED
     assert export.pose_metrics["estimated_contact_frame_index"] == tracked
     assert export.phases["estimated_contact_frame_index"] == tracked
+    assert export.snapshot_id == result.snapshot.snapshot_id
     payload = json.loads(dataset_path.read_text(encoding="utf-8"))
     assert payload["contact_event"]["frame_index"] == tracked
     assert payload["pose_metrics"]["estimated_contact_frame_index"] == tracked
     assert payload["phases"]["estimated_contact_frame_index"] == tracked
+    assert payload["snapshot_id"] == result.snapshot.snapshot_id
+
+    # All final artifacts share the same provenance envelope
+    for path in (
+        result.phases_json_path,
+        result.metrics_json_path,
+        result.contact_json_path,
+        result.evidence_json_path,
+        result.coaching_json_path,
+        result.overlay_meta_json_path,
+    ):
+        disk = json.loads(path.read_text(encoding="utf-8"))
+        assert disk["snapshot_id"] == result.snapshot.snapshot_id
+        assert disk["fingerprint"] == result.snapshot.fingerprint
+        assert disk["analysis_id"] == result.snapshot.analysis_id
 
 
 def test_finalize_without_tracks_keeps_kinematic_contact(

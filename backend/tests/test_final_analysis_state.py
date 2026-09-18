@@ -13,6 +13,7 @@ from app.processing.phases import detect_smash_phases
 from app.processing.stroke_metrics import compute_stroke_metrics_from_final
 from app.processing.technique import evaluate_technique_from_final
 from app.processing.video_quality import assess_video_quality
+from app.schemas.analysis_snapshot import build_analysis_snapshot
 from app.schemas.contact import CONTACT_TYPE_KINEMATIC, CONTACT_TYPE_TRACKED, ContactEvent
 from app.schemas.final_analysis import (
     FinalAnalysisState,
@@ -22,9 +23,11 @@ from app.schemas.final_analysis import (
     validate_final_analysis_state,
 )
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
+from app.schemas.provenance import apply_provenance
 from app.services.dataset_exporter import DatasetExporter
 from app.services.evidence_packager import EvidencePackager
 from app.services.pose_service import PoseService
+from app.services.video_service import _artifact_base_stem
 from tests.test_analyze_orchestration import (
     _kinematics_with_tracked_shift,
     _write_blank_video,
@@ -38,6 +41,7 @@ def _valid_state(
     contact_frame: int = 28,
     contact_type: str = CONTACT_TYPE_KINEMATIC,
 ) -> FinalAnalysisState:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     pose, angles, motion, _ = _synthetic_smash(n=40, contact=contact_frame)
     phases = detect_smash_phases(
         pose,
@@ -208,21 +212,42 @@ def test_downstream_consumers_share_final_contact_and_phases(
 ) -> None:
     state = _valid_state(tmp_path, contact_frame=28)
     contact_f = state.contact.frame_index
+    analysis_id = _artifact_base_stem(state.output_path)
+    snapshot = build_analysis_snapshot(state, analysis_id=analysis_id)
+    apply_provenance(
+        state.phases, snapshot, artifact_schema_version="1.0.0"
+    )
+    apply_provenance(
+        state.contact, snapshot, artifact_schema_version="1.0.0"
+    )
+    apply_provenance(
+        state.video_quality, snapshot, artifact_schema_version="1.0.0"
+    )
 
     metrics = compute_stroke_metrics_from_final(state)
+    apply_provenance(metrics, snapshot, artifact_schema_version="1.0.0")
     technique = evaluate_technique_from_final(state, metrics)
+    apply_provenance(technique, snapshot, artifact_schema_version="1.0.0")
     keyframes = extract_keyframes_from_final(
         state, tmp_path / "keyframes", include_contact_neighbors=True
     )
+    apply_provenance(keyframes, snapshot, artifact_schema_version="1.0.0")
     evidence = EvidencePackager().package_from_final(
-        state, metrics=metrics, technique=technique, keyframes=keyframes
+        state,
+        metrics=metrics,
+        technique=technique,
+        keyframes=keyframes,
+        snapshot=snapshot,
     )
-    coaching = generate_coaching_report_from_final(state, evidence)
+    coaching = generate_coaching_report_from_final(
+        state, evidence, snapshot=snapshot
+    )
     dataset_path, _template, export = DatasetExporter().export_from_final(
         state,
         metrics=metrics,
         technique=technique,
         keyframes=keyframes,
+        snapshot=snapshot,
     )
 
     assert metrics.estimated_contact_frame_index == contact_f
@@ -238,6 +263,9 @@ def test_downstream_consumers_share_final_contact_and_phases(
     assert export.pose_metrics["estimated_contact_frame_index"] == contact_f
     assert dataset_path.is_file()
     assert technique.video == metrics.video
+    assert evidence.snapshot_id == snapshot.snapshot_id
+    assert coaching.snapshot_id == snapshot.snapshot_id
+    assert export.snapshot_id == snapshot.snapshot_id
 
 
 def test_finalize_exposes_canonical_final_state(

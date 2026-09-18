@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.schemas.phases import SmashPhase
+from app.schemas.provenance import provenance_fields_from_object
 from app.schemas.reference import ReferenceEvidence
 
 
@@ -65,19 +66,27 @@ class TechniqueEvaluation:
     issues: list[TechniqueIssue] = field(default_factory=list)
     confidence: float = 0.0
     reference_profile_id: str = ""
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     @property
     def issue_count(self) -> int:
         return len(self.issues)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "video": self.video,
             "confidence": self.confidence,
             "issue_count": self.issue_count,
             "reference_profile_id": self.reference_profile_id,
             "issues": [issue.to_dict() for issue in self.issues],
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

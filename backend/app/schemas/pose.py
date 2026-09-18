@@ -38,6 +38,12 @@ class PoseFrame:
 class PoseSequence:
     video: str
     frames: list[PoseFrame] = field(default_factory=list)
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     @property
     def frame_count(self) -> int:
@@ -47,11 +53,15 @@ class PoseSequence:
         self.frames.append(frame)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        from app.schemas.provenance import provenance_fields_from_object
+
+        payload: dict[str, Any] = {
             "video": self.video,
             "frame_count": self.frame_count,
             "frames": [frame.to_dict() for frame in self.frames],
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

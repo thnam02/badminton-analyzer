@@ -19,6 +19,7 @@ from app.processing.technique import evaluate_technique_from_final
 from app.processing.technique_config import reference_profile_from_settings
 from app.processing.temporal import preprocess_pose_sequence
 from app.processing.video_quality import assess_video_quality
+from app.schemas.analysis_snapshot import build_analysis_snapshot
 from app.schemas.angles import AngleSequence
 from app.schemas.coaching import CoachingReport
 from app.schemas.contact import CONTACT_TYPE_KINEMATIC, ContactEvent
@@ -32,6 +33,26 @@ from app.schemas.keyframes import KeyframeSet
 from app.schemas.motion import MotionSequence
 from app.schemas.phases import PhaseSequence
 from app.schemas.pose import PoseFrame, PoseSequence
+from app.schemas.provenance import (
+    ANGLES_ARTIFACT_SCHEMA_VERSION,
+    ARTIFACT_ROLE_FINAL,
+    ARTIFACT_ROLE_INTERMEDIATE,
+    CONTACT_ARTIFACT_SCHEMA_VERSION,
+    KEYFRAMES_ARTIFACT_SCHEMA_VERSION,
+    MOTION_ARTIFACT_SCHEMA_VERSION,
+    OVERLAY_META_ARTIFACT_SCHEMA_VERSION,
+    PHASES_ARTIFACT_SCHEMA_VERSION,
+    QUALITY_ARTIFACT_SCHEMA_VERSION,
+    RAW_POSE_ARTIFACT_SCHEMA_VERSION,
+    SMOOTHED_POSE_ARTIFACT_SCHEMA_VERSION,
+    STROKE_METRICS_ARTIFACT_SCHEMA_VERSION,
+    TECHNIQUE_ARTIFACT_SCHEMA_VERSION,
+    AnalysisSnapshot,
+    apply_provenance,
+    overlay_metadata_dict,
+    save_artifact_json,
+    validate_object_provenance,
+)
 from app.schemas.racket import RacketTrajectory
 from app.schemas.shuttle import ShuttleTrajectory
 from app.schemas.stroke_metrics import StrokeMetrics
@@ -39,6 +60,8 @@ from app.schemas.technique import TechniqueEvaluation
 from app.schemas.video_quality import VideoQualityReport
 from app.services.evidence_packager import evidence_packager
 from app.services.video_service import (
+    _artifact_base_stem,
+    analysis_snapshot_json_path_for,
     angles_json_path_for,
     coaching_json_path_for,
     contact_json_path_for,
@@ -47,6 +70,7 @@ from app.services.video_service import (
     keyframes_dir_for,
     keyframes_json_path_for,
     motion_json_path_for,
+    overlay_meta_json_path_for,
     phases_json_path_for,
     pose_json_path_for,
     probe_video_metadata,
@@ -85,6 +109,7 @@ class FinalizedAnalysis:
     """Artifacts produced from a single immutable ``FinalAnalysisState``."""
 
     final_state: FinalAnalysisState
+    snapshot: AnalysisSnapshot
     stroke_metrics: StrokeMetrics
     technique_evaluation: TechniqueEvaluation
     keyframe_set: KeyframeSet
@@ -103,6 +128,8 @@ class FinalizedAnalysis:
     evidence_json_path: Path
     coaching_json_path: Path
     contact_json_path: Path
+    snapshot_json_path: Path
+    overlay_meta_json_path: Path
     mesh_video_path: Path | None
     mesh_json_path: Path | None
     mesh_status: dict | None
@@ -241,8 +268,48 @@ class PoseService:
             intermediate=intermediate,
         )
 
+        analysis_id = _artifact_base_stem(output_path)
+        snapshot = build_analysis_snapshot(final_state, analysis_id=analysis_id)
+
+        # Stamp canonical final-state objects before any downstream write.
+        apply_provenance(
+            final_state.phases,
+            snapshot,
+            artifact_schema_version=PHASES_ARTIFACT_SCHEMA_VERSION,
+        )
+        apply_provenance(
+            final_state.contact,
+            snapshot,
+            artifact_schema_version=CONTACT_ARTIFACT_SCHEMA_VERSION,
+        )
+        apply_provenance(
+            final_state.video_quality,
+            snapshot,
+            artifact_schema_version=QUALITY_ARTIFACT_SCHEMA_VERSION,
+        )
+        apply_provenance(
+            final_state.smoothed_pose,
+            snapshot,
+            artifact_schema_version=SMOOTHED_POSE_ARTIFACT_SCHEMA_VERSION,
+        )
+        apply_provenance(
+            final_state.angles,
+            snapshot,
+            artifact_schema_version=ANGLES_ARTIFACT_SCHEMA_VERSION,
+        )
+        apply_provenance(
+            final_state.motion,
+            snapshot,
+            artifact_schema_version=MOTION_ARTIFACT_SCHEMA_VERSION,
+        )
+
         # All downstream stages read contact/phases only via final_state.
         stroke_metrics = compute_stroke_metrics_from_final(final_state)
+        apply_provenance(
+            stroke_metrics,
+            snapshot,
+            artifact_schema_version=STROKE_METRICS_ARTIFACT_SCHEMA_VERSION,
+        )
         technique_evaluation = evaluate_technique_from_final(
             final_state,
             stroke_metrics,
@@ -251,21 +318,33 @@ class PoseService:
                 handedness=None,
             ),
         )
+        apply_provenance(
+            technique_evaluation,
+            snapshot,
+            artifact_schema_version=TECHNIQUE_ARTIFACT_SCHEMA_VERSION,
+        )
         keyframe_set = extract_keyframes_from_final(
             final_state,
             keyframes_dir_for(output_path),
             include_contact_neighbors=True,
+        )
+        apply_provenance(
+            keyframe_set,
+            snapshot,
+            artifact_schema_version=KEYFRAMES_ARTIFACT_SCHEMA_VERSION,
         )
         evidence_package = evidence_packager.package_from_final(
             final_state,
             metrics=stroke_metrics,
             technique=technique_evaluation,
             keyframes=keyframe_set,
+            snapshot=snapshot,
             handedness=None,
         )
         coaching_report = generate_coaching_report_from_final(
             final_state,
             evidence_package,
+            snapshot=snapshot,
         )
 
         _render_annotated_video_from_final(final_state)
@@ -300,27 +379,125 @@ class PoseService:
         evidence_json_path = evidence_json_path_for(output_path)
         coaching_json_path = coaching_json_path_for(output_path)
         contact_json_path = contact_json_path_for(output_path)
+        snapshot_json_path = analysis_snapshot_json_path_for(output_path)
+        overlay_meta_path = overlay_meta_json_path_for(output_path)
 
         raw_pose = (
             final_state.intermediate.raw_pose
             if final_state.intermediate is not None
             else kinematics.raw_sequence
         )
-        raw_pose.save_json(raw_json_path)
-        final_state.smoothed_pose.save_json(smoothed_json_path)
-        final_state.angles.save_json(angles_json_path)
-        final_state.motion.save_json(motion_json_path)
-        final_state.phases.save_json(phases_json_path)
-        stroke_metrics.save_json(metrics_json_path)
-        technique_evaluation.save_json(technique_json_path)
-        final_state.video_quality.save_json(quality_json_path)
-        keyframe_set.save_json(keyframes_json_path)
-        evidence_package.save_json(evidence_json_path)
-        coaching_report.save_json(coaching_json_path)
-        final_state.contact.save_json(contact_json_path)
+        apply_provenance(
+            raw_pose,
+            snapshot,
+            artifact_schema_version=RAW_POSE_ARTIFACT_SCHEMA_VERSION,
+            artifact_role=ARTIFACT_ROLE_INTERMEDIATE,
+        )
+
+        # Validate then write — reject any stale provenance before disk.
+        for obj, role in (
+            (final_state.phases, ARTIFACT_ROLE_FINAL),
+            (final_state.contact, ARTIFACT_ROLE_FINAL),
+            (stroke_metrics, ARTIFACT_ROLE_FINAL),
+            (technique_evaluation, ARTIFACT_ROLE_FINAL),
+            (keyframe_set, ARTIFACT_ROLE_FINAL),
+            (evidence_package, ARTIFACT_ROLE_FINAL),
+            (coaching_report, ARTIFACT_ROLE_FINAL),
+            (raw_pose, ARTIFACT_ROLE_INTERMEDIATE),
+        ):
+            validate_object_provenance(obj, snapshot, expect_role=role)
+
+        save_artifact_json(
+            raw_json_path,
+            raw_pose.to_dict(),
+            snapshot,
+            artifact_schema_version=RAW_POSE_ARTIFACT_SCHEMA_VERSION,
+            artifact_role=ARTIFACT_ROLE_INTERMEDIATE,
+        )
+        save_artifact_json(
+            smoothed_json_path,
+            final_state.smoothed_pose.to_dict(),
+            snapshot,
+            artifact_schema_version=SMOOTHED_POSE_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            angles_json_path,
+            final_state.angles.to_dict(),
+            snapshot,
+            artifact_schema_version=ANGLES_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            motion_json_path,
+            final_state.motion.to_dict(),
+            snapshot,
+            artifact_schema_version=MOTION_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            phases_json_path,
+            final_state.phases.to_dict(),
+            snapshot,
+            artifact_schema_version=PHASES_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            metrics_json_path,
+            stroke_metrics.to_dict(),
+            snapshot,
+            artifact_schema_version=STROKE_METRICS_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            technique_json_path,
+            technique_evaluation.to_dict(),
+            snapshot,
+            artifact_schema_version=TECHNIQUE_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            quality_json_path,
+            final_state.video_quality.to_dict(),
+            snapshot,
+            artifact_schema_version=QUALITY_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            keyframes_json_path,
+            keyframe_set.to_dict(),
+            snapshot,
+            artifact_schema_version=KEYFRAMES_ARTIFACT_SCHEMA_VERSION,
+        )
+        save_artifact_json(
+            evidence_json_path,
+            evidence_package.to_dict(),
+            snapshot,
+            artifact_schema_version=evidence_package.evidence_version,
+        )
+        save_artifact_json(
+            coaching_json_path,
+            coaching_report.to_dict(),
+            snapshot,
+            artifact_schema_version=coaching_report.artifact_schema_version
+            or "1.0.0",
+        )
+        save_artifact_json(
+            contact_json_path,
+            final_state.contact.to_dict(),
+            snapshot,
+            artifact_schema_version=CONTACT_ARTIFACT_SCHEMA_VERSION,
+        )
+        snapshot.save_json(snapshot_json_path)
+        overlay_meta = overlay_metadata_dict(
+            snapshot,
+            output_video_name=output_path.name,
+            contact_frame_index=final_state.contact.frame_index,
+            phase_contact_frame_index=final_state.phases.estimated_contact_frame_index,
+        )
+        save_artifact_json(
+            overlay_meta_path,
+            overlay_meta,
+            snapshot,
+            artifact_schema_version=OVERLAY_META_ARTIFACT_SCHEMA_VERSION,
+        )
 
         return FinalizedAnalysis(
             final_state=final_state,
+            snapshot=snapshot,
             stroke_metrics=stroke_metrics,
             technique_evaluation=technique_evaluation,
             keyframe_set=keyframe_set,
@@ -339,6 +516,8 @@ class PoseService:
             evidence_json_path=evidence_json_path,
             coaching_json_path=coaching_json_path,
             contact_json_path=contact_json_path,
+            snapshot_json_path=snapshot_json_path,
+            overlay_meta_json_path=overlay_meta_path,
             mesh_video_path=mesh_video_path,
             mesh_json_path=mesh_json_path,
             mesh_status=mesh_status,

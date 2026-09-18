@@ -37,8 +37,26 @@ class StrokeMetrics:
     follow_through_speed_ratio: float | None = None
     follow_through_frame_count: int | None = None
 
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
+
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        for key in (
+            "analysis_id",
+            "snapshot_id",
+            "fingerprint",
+            "snapshot_schema_version",
+            "artifact_schema_version",
+            "artifact_role",
+        ):
+            if not payload.get(key):
+                payload.pop(key, None)
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

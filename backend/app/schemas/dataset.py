@@ -43,9 +43,16 @@ class DatasetExport:
         "Label-ready dataset export. Analysis behavior is unchanged; this file "
         "mirrors persisted artifacts for coach validation and future training."
     )
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        from app.schemas.provenance import provenance_fields_from_object
+
+        payload: dict[str, Any] = {
             "dataset_export_version": self.dataset_export_version,
             "analysis_id": self.analysis_id,
             "created_at": self.created_at,
@@ -62,6 +69,8 @@ class DatasetExport:
             "annotation_template": self.annotation_template,
             "notes": self.notes,
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)

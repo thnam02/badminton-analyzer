@@ -1,3 +1,8 @@
+from app.schemas.analysis_snapshot import (
+    build_analysis_snapshot,
+    build_canonical_fingerprint_payload,
+    fingerprint_canonical_payload,
+)
 from app.schemas.angles import AngleFrame, AngleSequence
 from app.schemas.coaching import (
     CoachingReport,
@@ -38,6 +43,13 @@ from app.schemas.keyframes import CONTACT_MINUS_2, CONTACT_PLUS_2, Keyframe, Key
 from app.schemas.motion import MotionFrame, MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import Keypoint, PoseFrame, PoseSequence
+from app.schemas.provenance import (
+    ANALYSIS_SNAPSHOT_SCHEMA_VERSION,
+    AnalysisSnapshot,
+    ProvenanceError,
+    apply_provenance,
+    validate_artifact_provenance,
+)
 from app.schemas.racket import RacketBBox, RacketPoint, RacketTrajectory
 from app.schemas.reference import (
     MetricReference,
@@ -63,8 +75,10 @@ from app.schemas.technique import (
 from app.schemas.video_quality import VideoQualityMetrics, VideoQualityReport
 
 __all__ = [
+    "ANALYSIS_SNAPSHOT_SCHEMA_VERSION",
     "ANNOTATION_SCHEMA_VERSION",
     "AccelerationMetrics",
+    "AnalysisSnapshot",
     "AngleFrame",
     "AngleSequence",
     "BackswingMetrics",
@@ -105,6 +119,7 @@ __all__ = [
     "PoseSequence",
     "PreparationMetrics",
     "PrioritizedIssue",
+    "ProvenanceError",
     "QualityRating",
     "QualityScore",
     "ReferenceEvidence",
@@ -123,6 +138,11 @@ __all__ = [
     "TechniqueIssue",
     "VideoQualityMetrics",
     "VideoQualityReport",
+    "apply_provenance",
+    "build_analysis_snapshot",
+    "build_canonical_fingerprint_payload",
     "build_final_analysis_state",
+    "fingerprint_canonical_payload",
+    "validate_artifact_provenance",
     "validate_final_analysis_state",
 ]

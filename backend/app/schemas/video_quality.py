@@ -44,9 +44,17 @@ class VideoQualityReport:
         "Video quality assessment marks limitations only; "
         "clips are not rejected aggressively."
     )
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        from app.schemas.provenance import provenance_fields_from_object
+
+        payload: dict[str, Any] = {
             "video": self.video,
             "usable": self.usable,
             "analysis_confidence": self.analysis_confidence,
@@ -54,6 +62,8 @@ class VideoQualityReport:
             "warnings": list(self.warnings),
             "notes": self.notes,
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

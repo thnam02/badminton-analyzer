@@ -24,6 +24,7 @@ from app.schemas.coaching import (
 )
 from app.schemas.evidence import EvidencePackage
 from app.schemas.final_analysis import FinalAnalysisState
+from app.schemas.provenance import AnalysisSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +46,23 @@ def generate_coaching_report_from_final(
     state: FinalAnalysisState,
     evidence: EvidencePackage,
     *,
+    snapshot: AnalysisSnapshot | None = None,
     include_keyframes: bool = True,
 ) -> CoachingReport:
     """Generate coaching from evidence packaged against ``FinalAnalysisState``.
 
     Does not change OpenAI behavior — only asserts contact/phase identity so
-    coaching cannot silently use a stale contact frame.
+    coaching cannot silently use a stale contact frame. When ``snapshot`` is
+    provided, the report is stamped with matching provenance.
     """
+    if snapshot is not None:
+        from app.schemas.provenance import (
+            COACHING_ARTIFACT_SCHEMA_VERSION,
+            apply_provenance,
+            validate_object_provenance,
+        )
+
+        validate_object_provenance(evidence, snapshot)
     if evidence.contact.frame_index != state.contact.frame_index:
         raise ValueError(
             "EvidencePackage contact must match FinalAnalysisState.contact; "
@@ -62,10 +73,19 @@ def generate_coaching_report_from_final(
         raise ValueError(
             "EvidencePackage contact_type must match FinalAnalysisState.contact."
         )
-    return generate_coaching_report(
+    report = generate_coaching_report(
         evidence,
         include_keyframes=include_keyframes,
     )
+    if snapshot is not None:
+        apply_provenance(
+            report,
+            snapshot,
+            artifact_schema_version=COACHING_ARTIFACT_SCHEMA_VERSION,
+        )
+        validate_object_provenance(report, snapshot)
+    return report
+
 
 
 def generate_coaching_report(

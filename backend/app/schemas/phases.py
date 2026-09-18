@@ -8,6 +8,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from app.schemas.provenance import provenance_fields_from_object
+
 
 class SmashPhase(str, Enum):
     PREPARATION = "PREPARATION"
@@ -51,6 +53,13 @@ class PhaseSequence:
         "ESTIMATED_CONTACT is anchored at peak right-wrist speed; "
         "shuttle/racket tracking is not used."
     )
+    # Provenance (set from AnalysisSnapshot before final write).
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     @property
     def frame_count(self) -> int:
@@ -60,7 +69,7 @@ class PhaseSequence:
         return self.frame_phases.get(frame_index)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "video": self.video,
             "confidence": self.confidence,
             "estimated_contact_frame_index": self.estimated_contact_frame_index,
@@ -71,6 +80,8 @@ class PhaseSequence:
                 str(idx): phase.value for idx, phase in sorted(self.frame_phases.items())
             },
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

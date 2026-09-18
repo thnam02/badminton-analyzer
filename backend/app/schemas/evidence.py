@@ -87,6 +87,12 @@ class EvidencePackage:
         "no biomechanics or CV recalculation."
     )
     extra: dict[str, Any] = field(default_factory=dict)
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -108,6 +114,9 @@ class EvidencePackage:
         }
         if self.extra:
             payload["extra"] = self.extra
+        from app.schemas.provenance import provenance_fields_from_object
+
+        payload.update(provenance_fields_from_object(self))
         return payload
 
     def save_json(self, path: Path) -> Path:

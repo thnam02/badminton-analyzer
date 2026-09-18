@@ -150,6 +150,7 @@ async def analyze(
                 metrics=finalized.stroke_metrics,
                 technique=finalized.technique_evaluation,
                 keyframes=finalized.keyframe_set,
+                snapshot=finalized.snapshot,
                 phases_json_path=phases_json_path,
                 metrics_json_path=metrics_json_path,
                 contact_json_path=contact_json_path,

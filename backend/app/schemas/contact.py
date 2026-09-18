@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.schemas.provenance import provenance_fields_from_object
+
 CONTACT_TYPE_TRACKED = "TRACKED_CONTACT"
 CONTACT_TYPE_KINEMATIC = "KINEMATIC_ESTIMATE"
 # Backward-compatible alias used by older evidence consumers.
@@ -45,9 +47,15 @@ class ContactEvent:
     kinematic_frame_index: int | None = None
     kinematic_timestamp: float | None = None
     notes: str = ""
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "contact_type": self.contact_type,
             "frame_index": self.frame_index,
             "timestamp": self.timestamp,
@@ -57,6 +65,8 @@ class ContactEvent:
             "notes": self.notes,
             "evidence": [e.to_dict() for e in self.evidence],
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
