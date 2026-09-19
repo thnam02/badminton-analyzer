@@ -49,6 +49,25 @@ from app.validation.report import (
     POSE_VALIDATION_REPORT_VERSION,
     PoseValidationReport,
 )
+from app.validation.technique_annotations import (
+    TECHNIQUE_VALIDATION_ANNOTATION_VERSION,
+    CoachIssueLabel,
+    StrokeTechniqueAnnotation,
+    TechniqueValidationAnnotationSet,
+    load_technique_annotation_set,
+)
+from app.validation.technique_issues import (
+    SUPPORTED_TECHNIQUE_ISSUE_CODES,
+)
+from app.validation.technique_report import (
+    TECHNIQUE_VALIDATION_REPORT_VERSION,
+    TechniqueValidationReport,
+)
+from app.validation.technique_validator import (
+    TechniqueIssueValidator,
+    export_technique_validation_report,
+    validate_technique_issues,
+)
 from app.validation.validator import (
     PoseValidator,
     export_pose_validation_report,
@@ -67,6 +86,7 @@ __all__ = [
     "BOUNDARY_NAMES",
     "BoundaryAnnotation",
     "COCO17_JOINTS",
+    "CoachIssueLabel",
     "PHASE_CONTACT_VALIDATION_ANNOTATION_VERSION",
     "PHASE_CONTACT_VALIDATION_REPORT_VERSION",
     "POSE_VALIDATION_ANNOTATION_VERSION",
@@ -77,15 +97,24 @@ __all__ = [
     "PoseValidationAnnotationSet",
     "PoseValidationReport",
     "PoseValidator",
+    "SUPPORTED_TECHNIQUE_ISSUE_CODES",
+    "StrokeTechniqueAnnotation",
+    "TECHNIQUE_VALIDATION_ANNOTATION_VERSION",
+    "TECHNIQUE_VALIDATION_REPORT_VERSION",
+    "TechniqueIssueValidator",
+    "TechniqueValidationAnnotationSet",
+    "TechniqueValidationReport",
     "VALIDATED_ANGLE_NAMES",
     "VideoPhaseContactAnnotation",
     "export_angle_validation_report",
     "export_phase_contact_validation_report",
     "export_pose_validation_report",
+    "export_technique_validation_report",
     "extract_predicted_boundaries",
     "load_angle_annotation_set",
     "load_annotation_set",
     "load_phase_contact_annotation_set",
+    "load_technique_annotation_set",
     "render_worst_angle_debug_images",
     "render_worst_frame_debug_images",
     "render_worst_timing_timelines",
@@ -93,4 +122,5 @@ __all__ = [
     "validate_angles",
     "validate_phase_contact",
     "validate_pose",
+    "validate_technique_issues",
 ]

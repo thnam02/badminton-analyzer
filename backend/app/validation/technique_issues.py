@@ -1,0 +1,28 @@
+"""Supported technique-issue codes for offline coach-label validation."""
+
+from __future__ import annotations
+
+# Minimum set required by the technique-validation workflow, plus other
+# codes currently emitted by the production TechniqueEvaluation rules.
+ISSUE_INSUFFICIENT_ELBOW_EXTENSION = "INSUFFICIENT_ELBOW_EXTENSION"
+ISSUE_LOW_KNEE_CONTRIBUTION = "LOW_KNEE_CONTRIBUTION"
+ISSUE_PREPARATION_KNEE_OUT_OF_RANGE = "PREPARATION_KNEE_OUT_OF_RANGE"
+ISSUE_POOR_ARM_ACCELERATION_TIMING = "POOR_ARM_ACCELERATION_TIMING"
+ISSUE_LOW_CONTACT_POSTURE = "LOW_CONTACT_POSTURE"
+ISSUE_WEAK_FOLLOW_THROUGH = "WEAK_FOLLOW_THROUGH"
+
+SUPPORTED_TECHNIQUE_ISSUE_CODES: tuple[str, ...] = (
+    ISSUE_INSUFFICIENT_ELBOW_EXTENSION,
+    ISSUE_LOW_KNEE_CONTRIBUTION,
+    ISSUE_PREPARATION_KNEE_OUT_OF_RANGE,
+    ISSUE_POOR_ARM_ACCELERATION_TIMING,
+    ISSUE_LOW_CONTACT_POSTURE,
+    ISSUE_WEAK_FOLLOW_THROUGH,
+)
+
+# Coach ground-truth labels (binary presence with an uncertain opt-out).
+LABEL_PRESENT = "present"
+LABEL_ABSENT = "absent"
+LABEL_UNCERTAIN = "uncertain"
+
+COACH_LABELS: tuple[str, ...] = (LABEL_PRESENT, LABEL_ABSENT, LABEL_UNCERTAIN)
