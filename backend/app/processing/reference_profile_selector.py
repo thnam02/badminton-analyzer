@@ -24,6 +24,7 @@ class ProfileSelection:
     profile: ReferenceProfile | None
     match_level: str
     reason: str
+    resolved_profile_id: str | None = None
 
     @property
     def has_valid_profile(self) -> bool:
@@ -41,13 +42,19 @@ class ReferenceProfileSelector:
     """Select the best ReferenceProfile for technique evaluation.
 
     Preference order:
-    1. Explicit ``profile_id``
+    1. Explicit ``profile_id`` (must be an exact ID — never ``\"latest\"``)
     2. Exact stroke + handedness + camera_view + skill_level (when skill requested)
     3. Exact stroke + hand + view (skill wildcard / skill not requested)
     4. stroke + hand + any view
     5. stroke + any hand + view
     6. stroke wildcard (any hand/view/skill)
     7. ``none`` — caller must use provisional fallback rules (not mix thresholds)
+
+    When ``prefer_validated`` / ``require_validated`` is set, only profiles with
+    ``status == VALIDATED`` (case-insensitive) are considered. Production callers
+    should resolve ``latest validated compatible`` via
+    ``ReferenceProfileRegistry.latest_validated_compatible`` *before* analysis and
+    pass the concrete ``profile_id``.
     """
 
     def __init__(
@@ -67,22 +74,54 @@ class ReferenceProfileSelector:
         camera_view: str | None = None,
         skill_level: str | None = None,
         profile_id: str | None = None,
+        prefer_validated: bool = False,
+        require_validated: bool = False,
     ) -> ProfileSelection:
-        catalog = self.profiles
+        if profile_id == "latest":
+            raise ValueError(
+                "profile_id='latest' is not allowed; resolve to an exact "
+                "immutable profile ID before analysis"
+            )
+
+        catalog = list(self.profiles)
+        if prefer_validated or require_validated:
+            catalog = [p for p in catalog if _is_validated_status(p.status)]
+            if require_validated and not catalog:
+                return ProfileSelection(
+                    profile=None,
+                    match_level=MATCH_NONE,
+                    reason="no_validated_reference_profile",
+                    resolved_profile_id=None,
+                )
+
         if not catalog:
             return ProfileSelection(
                 profile=None,
                 match_level=MATCH_NONE,
                 reason="empty_profile_catalog",
+                resolved_profile_id=None,
             )
 
         if profile_id:
             for profile in catalog:
                 if profile.profile_id == profile_id:
+                    if require_validated and not _is_validated_status(profile.status):
+                        raise ValueError(
+                            f"Profile '{profile_id}' is not VALIDATED "
+                            f"(status={profile.status!r})"
+                        )
                     return ProfileSelection(
                         profile=profile,
                         match_level=MATCH_EXACT,
                         reason=f"explicit_profile_id:{profile_id}",
+                        resolved_profile_id=profile.profile_id,
+                    )
+            # Explicit ID may exist but filtered out as non-validated.
+            for profile in self.profiles:
+                if profile.profile_id == profile_id:
+                    raise ValueError(
+                        f"Profile '{profile_id}' found but not eligible under "
+                        f"validated-only selection (status={profile.status!r})"
                     )
             raise KeyError(f"Unknown reference profile_id '{profile_id}'")
 
@@ -124,15 +163,18 @@ class ReferenceProfileSelector:
                     and _normalize_view(p.camera_view) is None
                 ]
                 if wildcards:
+                    chosen = wildcards[0]
                     return ProfileSelection(
-                        profile=wildcards[0],
+                        profile=chosen,
                         match_level=MATCH_STROKE,
                         reason="stroke_wildcard_profile",
+                        resolved_profile_id=chosen.profile_id,
                     )
             return ProfileSelection(
                 profile=None,
                 match_level=MATCH_NONE,
                 reason="no_matching_reference_profile",
+                resolved_profile_id=None,
             )
 
         scored.sort(key=lambda item: item[0], reverse=True)
@@ -144,7 +186,48 @@ class ReferenceProfileSelector:
                 f"selected score=hand:{best_score[0]},view:{best_score[1]},"
                 f"skill:{best_score[2]} → {best_level}"
             ),
+            resolved_profile_id=best_profile.profile_id,
         )
+
+
+def select_latest_validated_compatible(
+    *,
+    stroke_type: str = "SMASH",
+    handedness: str | None = None,
+    camera_view: str | None = None,
+    skill_level: str | None = None,
+    registry: object | None = None,
+) -> ProfileSelection:
+    """Resolve 'latest validated compatible' to an exact immutable profile ID.
+
+    Returns ``MATCH_NONE`` when no validated compatible profile exists.
+    """
+    if registry is None:
+        return ProfileSelection(
+            profile=None,
+            match_level=MATCH_NONE,
+            reason="no_registry_for_latest_validated",
+            resolved_profile_id=None,
+        )
+    versioned = registry.latest_validated_compatible(  # type: ignore[attr-defined]
+        stroke_type=stroke_type,
+        handedness=handedness,
+        camera_view=camera_view,
+        skill_level=skill_level,
+    )
+    if versioned is None:
+        return ProfileSelection(
+            profile=None,
+            match_level=MATCH_NONE,
+            reason="no_validated_compatible_profile",
+            resolved_profile_id=None,
+        )
+    return ProfileSelection(
+        profile=versioned.profile,
+        match_level=MATCH_EXACT,
+        reason=f"latest_validated_compatible→{versioned.profile_id}",
+        resolved_profile_id=versioned.profile_id,
+    )
 
 
 def select_reference_profile(
@@ -155,6 +238,7 @@ def select_reference_profile(
     skill_level: str | None = None,
     profile_id: str | None = None,
     profiles: list[ReferenceProfile] | None = None,
+    prefer_validated: bool = False,
 ) -> ReferenceProfile:
     """Backward-compatible helper that always returns a profile when catalog non-empty.
 
@@ -167,6 +251,7 @@ def select_reference_profile(
         camera_view=camera_view,
         skill_level=skill_level,
         profile_id=profile_id,
+        prefer_validated=prefer_validated,
     )
     if selection.profile is None:
         catalog = list(profiles) if profiles is not None else _default_catalog()
@@ -174,6 +259,10 @@ def select_reference_profile(
             raise ValueError("No reference profiles available")
         return catalog[0]
     return selection.profile
+
+
+def _is_validated_status(status: str | None) -> bool:
+    return str(status or "").strip().upper() == "VALIDATED"
 
 
 def _match_level(

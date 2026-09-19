@@ -310,11 +310,24 @@ def export_technique_validation_report(
 def _predicted_codes(
     predicted: Sequence[TechniqueIssue] | TechniqueEvaluation,
 ) -> set[str]:
+    """Codes counted as positive predictions (excludes insufficient evidence)."""
+    from app.schemas.technique_calibration import IssueStatus
+
     if isinstance(predicted, TechniqueEvaluation):
         issues = predicted.issues
     else:
         issues = predicted
-    return {str(i.code) for i in issues if i.code}
+    out: set[str] = set()
+    for issue in issues:
+        if not issue.code:
+            continue
+        status = getattr(issue, "status", "") or ""
+        if status == IssueStatus.INSUFFICIENT_EVIDENCE.value:
+            continue
+        if status == IssueStatus.NO_ISSUE.value:
+            continue
+        out.add(str(issue.code))
+    return out
 
 
 def _outcome(*, gt_present: bool, pred_present: bool) -> str:

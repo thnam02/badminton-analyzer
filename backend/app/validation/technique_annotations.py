@@ -28,6 +28,7 @@ class CoachIssueLabel:
 
     label: str
     coach_confidence: float | None = None
+    coach_severity: str | None = None
     notes: str = ""
 
     def __post_init__(self) -> None:
@@ -37,6 +38,22 @@ class CoachIssueLabel:
                 f"Invalid coach label {self.label!r}; expected one of {COACH_LABELS}"
             )
         self.label = normalized
+        if self.coach_severity is not None:
+            sev = str(self.coach_severity).strip().upper()
+            aliases = {
+                "LOW": "MINOR",
+                "MEDIUM": "MODERATE",
+                "HIGH": "MAJOR",
+                "MINOR": "MINOR",
+                "MODERATE": "MODERATE",
+                "MAJOR": "MAJOR",
+            }
+            if sev not in aliases:
+                raise ValueError(
+                    f"Invalid coach_severity {self.coach_severity!r}; "
+                    "expected MINOR/MODERATE/MAJOR (or LOW/MEDIUM/HIGH)"
+                )
+            self.coach_severity = aliases[sev]
 
     @property
     def is_certain(self) -> bool:
@@ -54,6 +71,8 @@ class CoachIssueLabel:
         payload: dict[str, Any] = {"label": self.label}
         if self.coach_confidence is not None:
             payload["coach_confidence"] = float(self.coach_confidence)
+        if self.coach_severity is not None:
+            payload["coach_severity"] = self.coach_severity
         if self.notes:
             payload["notes"] = self.notes
         return payload
@@ -68,6 +87,11 @@ class StrokeTechniqueAnnotation:
     issues: dict[str, CoachIssueLabel] = field(default_factory=dict)
     analysis_confidence: float | None = None
     camera_quality: str | None = None
+    camera_view: str | None = None
+    skill_level: str | None = None
+    pose_confidence: float | None = None
+    contact_confidence: float | None = None
+    reference_profile_id: str | None = None
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -82,6 +106,16 @@ class StrokeTechniqueAnnotation:
             payload["analysis_confidence"] = float(self.analysis_confidence)
         if self.camera_quality is not None:
             payload["camera_quality"] = str(self.camera_quality)
+        if self.camera_view is not None:
+            payload["camera_view"] = str(self.camera_view)
+        if self.skill_level is not None:
+            payload["skill_level"] = str(self.skill_level)
+        if self.pose_confidence is not None:
+            payload["pose_confidence"] = float(self.pose_confidence)
+        if self.contact_confidence is not None:
+            payload["contact_confidence"] = float(self.contact_confidence)
+        if self.reference_profile_id is not None:
+            payload["reference_profile_id"] = str(self.reference_profile_id)
         if self.notes:
             payload["notes"] = self.notes
         return payload
@@ -140,9 +174,11 @@ def technique_annotation_set_from_dict(
             if not isinstance(vals, dict) or "label" not in vals:
                 continue
             conf = vals.get("coach_confidence")
+            sev = vals.get("coach_severity")
             issues[code] = CoachIssueLabel(
                 label=str(vals["label"]),
                 coach_confidence=float(conf) if conf is not None else None,
+                coach_severity=str(sev) if sev is not None else None,
                 notes=str(vals.get("notes") or ""),
             )
         stroke_id = str(raw.get("stroke_id") or raw.get("video") or "")
@@ -159,6 +195,31 @@ def technique_annotation_set_from_dict(
                 camera_quality=(
                     str(raw["camera_quality"])
                     if raw.get("camera_quality") is not None
+                    else None
+                ),
+                camera_view=(
+                    str(raw["camera_view"])
+                    if raw.get("camera_view") is not None
+                    else None
+                ),
+                skill_level=(
+                    str(raw["skill_level"])
+                    if raw.get("skill_level") is not None
+                    else None
+                ),
+                pose_confidence=(
+                    float(raw["pose_confidence"])
+                    if raw.get("pose_confidence") is not None
+                    else None
+                ),
+                contact_confidence=(
+                    float(raw["contact_confidence"])
+                    if raw.get("contact_confidence") is not None
+                    else None
+                ),
+                reference_profile_id=(
+                    str(raw["reference_profile_id"])
+                    if raw.get("reference_profile_id") is not None
                     else None
                 ),
                 notes=str(raw.get("notes") or ""),

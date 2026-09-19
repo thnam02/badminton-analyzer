@@ -83,6 +83,14 @@ from app.validation.technique_validator import (
     export_technique_validation_report,
     validate_technique_issues,
 )
+from app.validation.technique_ab_comparison import (
+    TechniqueABComparisonReport,
+    ValidationDecisionArtifact,
+    build_validation_decision,
+    compare_legacy_vs_reference,
+    coverage_and_insufficient_rates,
+    severity_agreement_stats,
+)
 from app.validation.validator import (
     PoseValidator,
     export_pose_validation_report,
@@ -125,8 +133,13 @@ __all__ = [
     "TechniqueIssueValidator",
     "TechniqueValidationAnnotationSet",
     "TechniqueValidationReport",
+    "TechniqueABComparisonReport",
+    "ValidationDecisionArtifact",
     "VALIDATED_ANGLE_NAMES",
     "VideoPhaseContactAnnotation",
+    "build_validation_decision",
+    "compare_legacy_vs_reference",
+    "coverage_and_insufficient_rates",
     "export_angle_validation_report",
     "export_coaching_validation_report",
     "export_phase_contact_validation_report",
@@ -142,6 +155,7 @@ __all__ = [
     "render_worst_frame_debug_images",
     "render_worst_timing_timelines",
     "resolve_ground_truth_angles",
+    "severity_agreement_stats",
     "validate_angles",
     "validate_coaching_reports",
     "validate_phase_contact",

@@ -117,6 +117,12 @@ class ReferenceProfile:
         "Provisional reference values from configuration/sample data — "
         "not scientifically validated."
     )
+    # C6 provenance / lifecycle (optional on older catalogs).
+    status: str = "DRAFT"
+    dataset_id: str = ""
+    dataset_version: str = ""
+    dataset_fingerprint: str = ""
+    sample_count: int = 0
 
     def get_metric(self, metric_id: str) -> MetricReference | None:
         return self.metrics.get(metric_id)
@@ -132,5 +138,10 @@ class ReferenceProfile:
             "profile_version": self.profile_version,
             "source": self.source,
             "notes": self.notes,
+            "status": self.status,
+            "dataset_id": self.dataset_id,
+            "dataset_version": self.dataset_version,
+            "dataset_fingerprint": self.dataset_fingerprint,
+            "sample_count": self.sample_count,
             "metrics": {k: v.to_dict() for k, v in self.metrics.items()},
         }

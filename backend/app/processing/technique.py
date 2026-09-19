@@ -1,9 +1,8 @@
 """Technique evaluation against selected ReferenceProfile distributions.
 
-Uses C2/versioned profile percentiles (and optional robust z) as the primary
-decision basis. Hard-coded settings thresholds are used only when
-``ReferenceProfileSelector`` returns ``match_level=none`` — never mixed into
-reference-based decisions.
+Uses C2/versioned profile percentiles with C4 calibrated severity/confidence.
+Hard-coded settings thresholds apply only when selection returns
+``match_level=none``. Legacy hard-coded rules remain in ``technique_legacy`` (C5).
 """
 
 from __future__ import annotations
@@ -39,6 +38,14 @@ from app.schemas.technique import (
     ReferenceRange,
     TechniqueEvaluation,
     TechniqueIssue,
+    status_to_severity,
+)
+from app.schemas.technique_calibration import (
+    IssueStatus,
+    SeverityCalibrationConfig,
+    build_evaluation_confidence,
+    calibrate_issue_status,
+    default_severity_calibration,
 )
 
 
@@ -46,12 +53,14 @@ from app.schemas.technique import (
 class TechniqueDecisionConfig:
     """Confidence gates and distribution-comparison knobs."""
 
-    suppress_below_confidence: float = 0.25
+    suppress_below_confidence: float = 0.15
     uncertain_below_confidence: float = 0.45
     use_robust_z: bool = True
     robust_z_threshold: float = 1.5
-    # Gate below lower percentile rank region (P10 by default on profiles).
     low_percentile_margin: float = 0.0
+    pose_confidence_default: float = 1.0
+    prefer_validated_only: bool = False
+    severity_calibration: SeverityCalibrationConfig | None = None
 
 
 def evaluate_technique_from_final(
@@ -66,7 +75,9 @@ def evaluate_technique_from_final(
     camera_view: str | None = None,
     skill_level: str | None = None,
     quality_confidence: float | None = None,
+    pose_confidence: float | None = None,
     decision_config: TechniqueDecisionConfig | None = None,
+    profile_id: str | None = None,
 ) -> TechniqueEvaluation:
     """Evaluate technique using metrics derived from ``FinalAnalysisState``."""
     if metrics.estimated_contact_frame_index != state.contact.frame_index:
@@ -88,7 +99,9 @@ def evaluate_technique_from_final(
         camera_view=camera_view,
         skill_level=skill_level,
         quality_confidence=q_conf,
+        pose_confidence=pose_confidence,
         decision_config=decision_config,
+        profile_id=profile_id,
     )
 
 
@@ -103,11 +116,24 @@ def evaluate_technique(
     camera_view: str | None = None,
     skill_level: str | None = None,
     quality_confidence: float | None = None,
+    pose_confidence: float | None = None,
     decision_config: TechniqueDecisionConfig | None = None,
+    profile_id: str | None = None,
 ) -> TechniqueEvaluation:
-    """Compare StrokeMetrics to a selected reference distribution; no LLM."""
+    """Compare StrokeMetrics to a selected reference distribution; no LLM.
+
+    Selected profiles are always stored as exact immutable ``profile_id`` values —
+    never the literal string ``"latest"``.
+    """
     cfg = config or TechniqueSeverityConfig()
     decision = decision_config or TechniqueDecisionConfig()
+    calib = decision.severity_calibration or default_severity_calibration()
+
+    if profile_id == "latest":
+        raise ValueError(
+            "profile_id='latest' is not allowed on finalized analysis; "
+            "resolve to an exact immutable profile ID first"
+        )
 
     if profile is not None:
         selection_profile = profile
@@ -120,6 +146,9 @@ def evaluate_technique(
             handedness=handedness,
             camera_view=camera_view,
             skill_level=skill_level,
+            profile_id=profile_id,
+            prefer_validated=decision.prefer_validated_only,
+            require_validated=decision.prefer_validated_only,
         )
         if selection.has_valid_profile and selection.profile is not None:
             selection_profile = selection.profile
@@ -132,8 +161,28 @@ def evaluate_technique(
             decision_mode = "provisional_fallback"
             rule_version = TECHNIQUE_RULE_VERSION_FALLBACK
 
+    video_quality_confidence = (
+        float(max(0.0, min(1.0, quality_confidence)))
+        if quality_confidence is not None
+        else 1.0
+    )
+    pose_conf = (
+        float(max(0.0, min(1.0, pose_confidence)))
+        if pose_confidence is not None
+        else float(decision.pose_confidence_default)
+    )
+    phase_confidence = float(metrics.phase_confidence)
     measurement_confidence = _measurement_confidence(
-        metrics, quality_confidence=quality_confidence
+        metrics,
+        quality_confidence=quality_confidence,
+        pose_confidence=pose_conf,
+    )
+    context = _ConfidenceContext(
+        measurement_confidence=measurement_confidence,
+        phase_confidence=phase_confidence,
+        video_quality_confidence=video_quality_confidence,
+        pose_confidence=pose_conf,
+        calibration=calib,
     )
 
     if decision_mode == "reference_distribution" and selection_profile is not None:
@@ -142,40 +191,70 @@ def evaluate_technique(
             selection_profile,
             cfg,
             decision,
-            measurement_confidence=measurement_confidence,
+            context=context,
             rule_version=rule_version,
         )
-        profile_id = selection_profile.profile_id
+        resolved_profile_id = selection_profile.profile_id
+        if resolved_profile_id == "latest":
+            raise ValueError(
+                "Resolved profile_id must be an exact immutable ID, not 'latest'"
+            )
+        profile_version = selection_profile.profile_version
+        ref_conf_for_eval = _profile_reference_confidence(selection_profile)
     else:
         issues = _evaluate_provisional_fallback(
             metrics,
             cfg,
             decision,
-            measurement_confidence=measurement_confidence,
+            context=context,
         )
-        profile_id = "provisional_fallback_hardcoded_v1"
+        resolved_profile_id = "provisional_fallback_hardcoded_v1"
+        profile_version = "v1"
+        ref_conf_for_eval = 0.2
+
+    eval_confidence = build_evaluation_confidence(
+        measurement_confidence=measurement_confidence,
+        phase_confidence=phase_confidence,
+        video_quality_confidence=video_quality_confidence,
+        reference_confidence=ref_conf_for_eval,
+        pose_confidence=pose_conf,
+        config=calib,
+    )
 
     return TechniqueEvaluation(
         video=metrics.video,
         issues=issues,
         confidence=_evaluation_confidence(metrics, issues, measurement_confidence),
-        reference_profile_id=profile_id,
+        reference_profile_id=resolved_profile_id,
+        reference_profile_version=profile_version,
         profile_match_level=match_level,
         decision_mode=decision_mode,
         rule_version=rule_version,
+        severity_calibration_version=calib.version,
+        evaluation_confidence=eval_confidence,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _ConfidenceContext:
+    measurement_confidence: float
+    phase_confidence: float
+    video_quality_confidence: float
+    pose_confidence: float
+    calibration: SeverityCalibrationConfig
 
 
 def _measurement_confidence(
     metrics: StrokeMetrics,
     *,
     quality_confidence: float | None,
+    pose_confidence: float = 1.0,
 ) -> float:
-    parts = [float(metrics.phase_confidence)]
-    if quality_confidence is not None:
-        parts.append(float(max(0.0, min(1.0, quality_confidence))))
     if metrics.estimated_contact_frame_index is None:
         return 0.0
+    parts = [float(metrics.phase_confidence), float(pose_confidence)]
+    if quality_confidence is not None:
+        parts.append(float(max(0.0, min(1.0, quality_confidence))))
     return float(sum(parts) / len(parts))
 
 
@@ -186,11 +265,33 @@ def _evaluation_confidence(
 ) -> float:
     if metrics.estimated_contact_frame_index is None:
         return 0.0
-    if not issues:
+    judged = [
+        i
+        for i in issues
+        if i.status
+        not in (
+            IssueStatus.NO_ISSUE.value,
+            IssueStatus.INSUFFICIENT_EVIDENCE.value,
+        )
+    ]
+    if not judged:
+        if any(i.status == IssueStatus.INSUFFICIENT_EVIDENCE.value for i in issues):
+            return float(max(0.1, min(0.49, measurement_confidence)))
         return float(max(0.2, min(0.98, measurement_confidence)))
-    avg_issue_conf = sum(i.confidence for i in issues) / len(issues)
+    avg_issue_conf = sum(
+        (i.combined_confidence or i.confidence) for i in judged
+    ) / len(judged)
     return float(
         max(0.15, min(0.98, 0.55 * measurement_confidence + 0.45 * avg_issue_conf))
+    )
+
+
+def _profile_reference_confidence(profile: ReferenceProfile) -> float:
+    if not profile.metrics:
+        return 0.2
+    return float(
+        sum(float(m.confidence) for m in profile.metrics.values())
+        / len(profile.metrics)
     )
 
 
@@ -205,7 +306,7 @@ def _evaluate_against_profile(
     cfg: TechniqueSeverityConfig,
     decision: TechniqueDecisionConfig,
     *,
-    measurement_confidence: float,
+    context: _ConfidenceContext,
     rule_version: str,
 ) -> list[TechniqueIssue]:
     issues: list[TechniqueIssue] = []
@@ -253,22 +354,21 @@ def _evaluate_against_profile(
             profile=profile,
             cfg=cfg,
             decision=decision,
-            measurement_confidence=measurement_confidence,
+            context=context,
             rule_version=rule_version,
             description=description,
         )
         if issue is not None:
             issues.append(issue)
 
-    # Timing: compare elbow-to-wrist peak delay against reference distribution.
     timing_issue = _check_acceleration_timing_distribution(
-        m, profile, cfg, decision, measurement_confidence, rule_version
+        m, profile, cfg, decision, context, rule_version
     )
     if timing_issue is not None:
         issues.append(timing_issue)
 
     follow_issue = _check_follow_through_distribution(
-        m, profile, cfg, decision, measurement_confidence, rule_version
+        m, profile, cfg, decision, context, rule_version
     )
     if follow_issue is not None:
         issues.append(follow_issue)
@@ -281,7 +381,7 @@ def _check_acceleration_timing_distribution(
     profile: ReferenceProfile,
     cfg: TechniqueSeverityConfig,
     decision: TechniqueDecisionConfig,
-    measurement_confidence: float,
+    context: _ConfidenceContext,
     rule_version: str,
 ) -> TechniqueIssue | None:
     offset = m.peak_elbow_omega_offset_frames
@@ -310,8 +410,6 @@ def _check_acceleration_timing_distribution(
         )
 
     for measured, metric, desc, unit in candidates:
-        if not _is_outside_distribution(measured, metric, decision):
-            continue
         issue = _maybe_issue_from_distribution(
             code="POOR_ARM_ACCELERATION_TIMING",
             phase=SmashPhase.ACCELERATION,
@@ -320,7 +418,7 @@ def _check_acceleration_timing_distribution(
             profile=profile,
             cfg=cfg,
             decision=decision,
-            measurement_confidence=measurement_confidence,
+            context=context,
             rule_version=rule_version,
             description=desc,
         )
@@ -335,7 +433,7 @@ def _check_follow_through_distribution(
     profile: ReferenceProfile,
     cfg: TechniqueSeverityConfig,
     decision: TechniqueDecisionConfig,
-    measurement_confidence: float,
+    context: _ConfidenceContext,
     rule_version: str,
 ) -> TechniqueIssue | None:
     ratio = m.follow_through_speed_ratio
@@ -350,8 +448,6 @@ def _check_follow_through_distribution(
         candidates.append((float(frames), frames_metric, "frames"))
 
     for measured, metric, unit in candidates:
-        if not _is_outside_distribution(measured, metric, decision):
-            continue
         issue = _maybe_issue_from_distribution(
             code="WEAK_FOLLOW_THROUGH",
             phase=SmashPhase.FOLLOW_THROUGH,
@@ -360,7 +456,7 @@ def _check_follow_through_distribution(
             profile=profile,
             cfg=cfg,
             decision=decision,
-            measurement_confidence=measurement_confidence,
+            context=context,
             rule_version=rule_version,
             description=(
                 "Follow-through lacks sustained arm speed after estimated contact."
@@ -438,6 +534,11 @@ def _estimate_percentile_position(measured: float, metric: MetricReference) -> f
         return float(max(0.0, min(100.0, 100.0 / (1.0 + math.exp(-1.7 * z)))))
 
     if measured <= p10:
+        # Extrapolate below P10 using robust z when available for finer tails.
+        z = _robust_z(measured, metric)
+        if z is not None and z < 0:
+            # Map z=-1 → ~10, z=-2.5 → ~1, z≤-3 → ~0.3
+            return float(max(0.0, min(10.0, 10.0 * math.exp(0.9 * z))))
         return float(max(0.0, min(10.0, 10.0 * measured / max(abs(p10), 1e-6))))
     if measured <= p50:
         return float(10.0 + 40.0 * (measured - p10) / max(p50 - p10, 1e-6))
@@ -461,50 +562,66 @@ def _maybe_issue_from_distribution(
     profile: ReferenceProfile,
     cfg: TechniqueSeverityConfig,
     decision: TechniqueDecisionConfig,
-    measurement_confidence: float,
+    context: _ConfidenceContext,
     rule_version: str,
     description: str,
 ) -> TechniqueIssue | None:
-    if measurement_confidence < decision.suppress_below_confidence:
-        return None
-    if not _is_outside_distribution(measured, metric, decision):
-        return None
-
-    uncertain = measurement_confidence < decision.uncertain_below_confidence
-    ref = _range_from_metric(metric)
-    higher = _higher_is_better_flag(metric)
-    severity = _severity(measured, ref, cfg, higher_is_better=higher)
-    if uncertain:
-        severity = IssueSeverity.LOW
+    """Calibrated distribution decision → TechniqueIssue or None (NO_ISSUE)."""
+    del cfg  # severity now comes from SeverityCalibrationConfig
+    calib = decision.severity_calibration or context.calibration
 
     deviation = _deviation_from_median(measured, metric)
     percentile_position = _estimate_percentile_position(measured, metric)
-    robust_z = _robust_z(measured, metric)
-    rule_conf = _rule_confidence(measured, ref, higher)
-    confidence = float(
-        max(
-            0.1,
-            min(
-                0.98,
-                0.50 * measurement_confidence
-                + 0.30 * rule_conf
-                + 0.20 * float(metric.confidence),
-            ),
-        )
+    robust_z = _robust_z(measured, metric) if decision.use_robust_z else None
+
+    eval_conf = build_evaluation_confidence(
+        measurement_confidence=context.measurement_confidence,
+        phase_confidence=context.phase_confidence,
+        video_quality_confidence=context.video_quality_confidence,
+        reference_confidence=float(metric.confidence),
+        pose_confidence=context.pose_confidence,
+        config=calib,
     )
+
+    sample_count = int(metric.sample_count or profile.sample_count or 0)
+    status, reason = calibrate_issue_status(
+        direction=metric.direction,
+        percentile_position=percentile_position,
+        robust_z=robust_z,
+        eval_confidence=eval_conf,
+        reference_sample_count=sample_count,
+        reference_provisional=bool(metric.provisional or profile.provisional),
+        config=calib,
+    )
+    if status == IssueStatus.NO_ISSUE:
+        return None
+
+    severity = status_to_severity(status)
+    if severity is None:
+        # INSUFFICIENT_EVIDENCE — keep LOW for backward-compatible severity field.
+        severity = IssueSeverity.LOW
+
+    ref = _range_from_metric(metric)
+    uncertain = status == IssueStatus.INSUFFICIENT_EVIDENCE
+    conf = float(eval_conf.combined_confidence)
     if uncertain:
-        confidence = min(confidence, 0.45)
+        conf = min(conf, 0.49)
+
+    status_desc = description
+    if status == IssueStatus.INSUFFICIENT_EVIDENCE:
+        status_desc = f"{description} [{reason}]"
+    elif reason:
+        status_desc = f"{description} ({reason})"
 
     return TechniqueIssue(
         code=code,
         phase=phase,
         severity=severity,
-        confidence=confidence,
+        confidence=conf,
         measured_value=measured,
         reference_range=ref,
         unit=metric.unit,
-        description=description
-        + (" (uncertain — low measurement confidence)" if uncertain else ""),
+        description=status_desc,
         reference_profile_id=profile.profile_id,
         reference_evidence=_evidence_from_metric(
             metric,
@@ -516,10 +633,18 @@ def _maybe_issue_from_distribution(
         reference_median=metric.median,
         deviation=deviation,
         percentile_position=percentile_position,
-        measurement_confidence=measurement_confidence,
+        reference_percentile=percentile_position,
+        measurement_confidence=eval_conf.measurement_confidence,
+        phase_confidence=eval_conf.phase_confidence,
+        video_quality_confidence=eval_conf.video_quality_confidence,
+        reference_confidence=eval_conf.reference_confidence,
+        combined_confidence=eval_conf.combined_confidence,
         rule_version=rule_version,
+        severity_calibration_version=calib.version,
         decision_mode="reference_distribution",
+        status=status.value,
         uncertain=uncertain,
+        status_reason=reason,
     )
 
 
@@ -533,13 +658,11 @@ def _evaluate_provisional_fallback(
     cfg: TechniqueSeverityConfig,
     decision: TechniqueDecisionConfig,
     *,
-    measurement_confidence: float,
+    context: _ConfidenceContext,
 ) -> list[TechniqueIssue]:
     """Clearly marked hard-coded thresholds — never mixed with profile bands."""
-    if measurement_confidence < decision.suppress_below_confidence:
-        return []
-
-    uncertain = measurement_confidence < decision.uncertain_below_confidence
+    measurement_confidence = context.measurement_confidence
+    calib = decision.severity_calibration or context.calibration
     issues: list[TechniqueIssue] = []
 
     def _add(
@@ -569,15 +692,44 @@ def _evaluate_provisional_fallback(
         if not outside:
             return
         ref = ReferenceRange(min=threshold_min, max=threshold_max)
-        severity = _severity(measured, ref, cfg, higher_is_better=higher_is_better)
-        if uncertain:
+        eval_conf = build_evaluation_confidence(
+            measurement_confidence=context.measurement_confidence,
+            phase_confidence=context.phase_confidence,
+            video_quality_confidence=context.video_quality_confidence,
+            reference_confidence=0.2,
+            pose_confidence=context.pose_confidence,
+            config=calib,
+        )
+        if (
+            measurement_confidence < decision.suppress_below_confidence
+            or eval_conf.combined_confidence < calib.min_combined_confidence
+        ):
+            status = IssueStatus.INSUFFICIENT_EVIDENCE
             severity = IssueSeverity.LOW
+            reason = "Low measurement/combined confidence for provisional fallback"
+            uncertain = True
+            conf = min(float(eval_conf.combined_confidence), 0.49)
+        else:
+            status = IssueStatus.MINOR
+            severity = _severity(measured, ref, cfg, higher_is_better=higher_is_better)
+            if severity == IssueSeverity.HIGH:
+                status = IssueStatus.MAJOR
+            elif severity == IssueSeverity.MEDIUM:
+                status = IssueStatus.MODERATE
+            else:
+                status = IssueStatus.MINOR
+            reason = "Provisional hard-coded threshold (no reference profile)"
+            uncertain = measurement_confidence < decision.uncertain_below_confidence
+            if uncertain:
+                severity = IssueSeverity.LOW
+                status = IssueStatus.INSUFFICIENT_EVIDENCE
+                reason = "Uncertain provisional fallback judgement"
+            conf = float(max(0.1, min(0.85, 0.7 * measurement_confidence + 0.2)))
+            if uncertain:
+                conf = min(conf, 0.45)
         deviation = (
             measured - (threshold_min if higher_is_better is True else (threshold_max or 0.0))
         )
-        conf = float(max(0.1, min(0.85, 0.7 * measurement_confidence + 0.2)))
-        if uncertain:
-            conf = min(conf, 0.45)
         issues.append(
             TechniqueIssue(
                 code=code,
@@ -590,7 +742,7 @@ def _evaluate_provisional_fallback(
                 description=(
                     description
                     + " [provisional fallback thresholds — no reference profile]"
-                    + (" (uncertain)" if uncertain else "")
+                    + (f" ({reason})" if reason else "")
                 ),
                 reference_profile_id="provisional_fallback_hardcoded_v1",
                 reference_evidence=None,
@@ -598,10 +750,18 @@ def _evaluate_provisional_fallback(
                 reference_median=None,
                 deviation=float(deviation),
                 percentile_position=None,
-                measurement_confidence=measurement_confidence,
+                reference_percentile=None,
+                measurement_confidence=eval_conf.measurement_confidence,
+                phase_confidence=eval_conf.phase_confidence,
+                video_quality_confidence=eval_conf.video_quality_confidence,
+                reference_confidence=eval_conf.reference_confidence,
+                combined_confidence=eval_conf.combined_confidence,
                 rule_version=TECHNIQUE_RULE_VERSION_FALLBACK,
+                severity_calibration_version=calib.version,
                 decision_mode="provisional_fallback",
+                status=status.value,
                 uncertain=uncertain,
+                status_reason=reason,
             )
         )
 

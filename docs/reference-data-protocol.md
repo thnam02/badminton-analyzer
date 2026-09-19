@@ -114,4 +114,8 @@ Offline builder: `backend/app/processing/reference_profile_builder.py`.
   (`reference_profile_build_version`) with per-metric median/mean/std,
   P10/P25/P75/P90, IQR, missing-rate, and quality summary
 - Optionally drops low-quality analyses via `VideoQualityReport`
-- Does **not** wire into production technique rules yet
+- Production evaluation path (C3–C6): see
+  [`docs/reference-based-technique-evaluation.md`](reference-based-technique-evaluation.md)
+  — selector → calibrated evaluator → coach A/B validation → immutable
+  versioned profiles. Provisional catalogs remain marked until explicitly
+  validated.
