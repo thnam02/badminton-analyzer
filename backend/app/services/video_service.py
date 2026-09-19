@@ -88,6 +88,18 @@ def coaching_json_path_for(video_path: Path) -> Path:
     return video_path.with_name(f"{video_path.stem}_coaching.json")
 
 
+def analysis_snapshot_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_analysis_snapshot.json."""
+    return video_path.with_name(
+        f"{_artifact_base_stem(video_path)}_analysis_snapshot.json"
+    )
+
+
+def overlay_meta_json_path_for(video_path: Path) -> Path:
+    """Map outputs/{id}_pose.mp4 -> outputs/{id}_overlay_meta.json."""
+    return video_path.with_name(f"{_artifact_base_stem(video_path)}_overlay_meta.json")
+
+
 def _artifact_base_stem(video_path: Path) -> str:
     """Strip trailing ``_pose`` so shuttle/mesh share the upload UUID stem."""
     stem = video_path.stem

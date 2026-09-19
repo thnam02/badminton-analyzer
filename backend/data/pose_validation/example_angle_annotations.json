@@ -1,0 +1,25 @@
+{
+  "angle_validation_annotation_version": "1.0.0",
+  "video": "example_smash.mp4",
+  "notes": "Example schema: provide direct GT angles and/or keypoints. Degrees for angles; keypoints normalized [0,1].",
+  "frames": [
+    {
+      "frame_index": 28,
+      "phase": "ESTIMATED_CONTACT",
+      "pose_confidence": 0.88,
+      "angles": {
+        "right_elbow": 155.0,
+        "right_knee": 160.0,
+        "right_shoulder": 90.0
+      },
+      "keypoints": {
+        "right_shoulder": {"x": 0.42, "y": 0.30},
+        "right_elbow": {"x": 0.50, "y": 0.28},
+        "right_wrist": {"x": 0.58, "y": 0.26},
+        "right_hip": {"x": 0.44, "y": 0.55},
+        "right_knee": {"x": 0.46, "y": 0.72},
+        "right_ankle": {"x": 0.47, "y": 0.88}
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "technique_validation_annotation_version": "1.0.0",
+  "notes": "Example coach labels for technique-issue validation. Labels: present | absent | uncertain.",
+  "strokes": [
+    {
+      "stroke_id": "example_smash_01",
+      "video": "example_smash.mp4",
+      "analysis_confidence": 0.85,
+      "camera_quality": "good",
+      "issues": {
+        "INSUFFICIENT_ELBOW_EXTENSION": {
+          "label": "present",
+          "coach_confidence": 0.9,
+          "notes": "Elbow remains flexed at contact"
+        },
+        "LOW_KNEE_CONTRIBUTION": {
+          "label": "absent",
+          "coach_confidence": 0.8
+        },
+        "POOR_ARM_ACCELERATION_TIMING": {
+          "label": "uncertain",
+          "notes": "Occlusion near acceleration"
+        },
+        "LOW_CONTACT_POSTURE": {
+          "label": "absent"
+        },
+        "WEAK_FOLLOW_THROUGH": {
+          "label": "present",
+          "coach_confidence": 0.7
+        }
+      }
+    }
+  ]
+}

@@ -9,6 +9,7 @@ from typing import Protocol, TypeVar
 
 from app.schemas.angles import AngleSequence
 from app.schemas.contact import ContactEvent
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.motion import MotionSequence, PeakStats
 from app.schemas.phases import PhaseSegment, PhaseSequence, SmashPhase
 from app.schemas.pose import PoseSequence
@@ -33,6 +34,19 @@ T = TypeVar("T", bound=_Indexed)
 Getter = Callable[[T], float | None]
 
 
+def compute_stroke_metrics_from_final(
+    state: FinalAnalysisState,
+) -> LegacyStrokeMetrics:
+    """Compute stroke metrics exclusively from the canonical final analysis state."""
+    return compute_stroke_metrics(
+        state.smoothed_pose,
+        state.angles,
+        state.motion,
+        state.phases,
+        contact=state.contact,
+    )
+
+
 def compute_stroke_metrics(
     pose: PoseSequence,
     angles: AngleSequence,
@@ -45,6 +59,7 @@ def compute_stroke_metrics(
 
     When ``contact`` is provided, contact-frame measurements snap to that event
     even if phase labels still mention ESTIMATED_CONTACT.
+    Prefer ``compute_stroke_metrics_from_final`` after contact resolution.
     """
     video = pose.video or angles.video or motion.video or phases.video
     contact_idx = (

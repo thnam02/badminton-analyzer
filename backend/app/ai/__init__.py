@@ -7,6 +7,7 @@ from app.ai.coaching import (
     build_skipped_report,
     coaching_report_from_model,
     generate_coaching_report,
+    generate_coaching_report_from_final,
     is_coaching_configured,
     validate_coaching_model,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "build_skipped_report",
     "coaching_report_from_model",
     "generate_coaching_report",
+    "generate_coaching_report_from_final",
     "is_coaching_configured",
     "validate_coaching_model",
 ]

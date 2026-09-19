@@ -3,21 +3,33 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0f1410;
-  --bg-elevated: #1a221c;
-  --fg: #e8f0ea;
-  --muted: #9aada0;
-  --accent: #3dd68c;
-  --accent-dim: #2a9a64;
-  --danger: #f07178;
-  --border: #2c3a30;
+  --bg: #f7f6f3;
+  --bg-elevated: #ffffff;
+  --fg: #1a1c1a;
+  --muted: #5c635c;
+  --accent: #1f6b4a;
+  --accent-dim: #165239;
+  --accent-soft: #e7f2ec;
+  --danger: #9b2c2c;
+  --warning: #8a6d1d;
+  --border: #e2e0da;
+  --focus: #1f6b4a;
+  --timeline-track: #e8e6e0;
+  --timeline-active: #1f6b4a;
 }
 
 body {
   color: var(--fg);
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 214, 140, 0.12), transparent),
-    var(--bg);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--bg);
+  font-family: var(--font-sans), "Segoe UI", sans-serif;
   min-height: 100vh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
 }

@@ -1,0 +1,18 @@
+{
+  "phase_contact_validation_annotation_version": "1.0.0",
+  "notes": "Example multi-video timing labels. Timestamps optional when fps is set (frame_index/fps).",
+  "videos": [
+    {
+      "video": "example_smash.mp4",
+      "fps": 30.0,
+      "analysis_confidence": 0.85,
+      "boundaries": {
+        "PREPARATION_END": {"frame_index": 10, "timestamp": 0.333},
+        "BACKSWING_END": {"frame_index": 18, "timestamp": 0.6},
+        "ACCELERATION_START": {"frame_index": 19, "timestamp": 0.633},
+        "CONTACT": {"frame_index": 28, "timestamp": 0.933},
+        "FOLLOW_THROUGH_END": {"frame_index": 39, "timestamp": 1.3}
+      }
+    }
+  ]
+}

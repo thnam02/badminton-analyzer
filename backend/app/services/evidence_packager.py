@@ -13,13 +13,20 @@ from app.schemas.evidence import (
     ContactEvidence,
     EvidencePackage,
 )
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.keyframes import KeyframeSet
 from app.schemas.phases import PhaseSequence, SmashPhase
-from app.schemas.stroke_metrics import StrokeMetrics
+from app.schemas.provenance import (
+    AnalysisSnapshot,
+    apply_provenance,
+    validate_object_provenance,
+)
 from app.schemas.technique import TechniqueEvaluation, TechniqueIssue
 from app.schemas.video_quality import VideoQualityReport
+from typing import Any
 
-# Maps technique issue codes → StrokeMetrics field that supplies measured_value.
+
+# Maps technique issue codes → metrics field that supplies measured_value.
 # Timing / follow-through may use a secondary field when the primary is absent;
 # ``issue_source_metric`` resolves that from the issue unit.
 ISSUE_PRIMARY_METRIC: dict[str, str] = {
@@ -29,6 +36,12 @@ ISSUE_PRIMARY_METRIC: dict[str, str] = {
     "POOR_ARM_ACCELERATION_TIMING": "peak_elbow_omega_offset_frames",
     "LOW_CONTACT_POSTURE": "contact_wrist_y_normalized",
     "WEAK_FOLLOW_THROUGH": "follow_through_speed_ratio",
+    # Forehand clear
+    "LIMITED_CLEAR_PREPARATION": "preparation_elbow_angle_deg",
+    "INSUFFICIENT_ARM_EXTENSION": "contact_elbow_angle_deg",
+    "POOR_PROXIMAL_DISTAL_TIMING": "peak_elbow_omega_offset_frames",
+    "RESTRICTED_FOLLOW_THROUGH": "follow_through_speed_ratio",
+    "SLOW_RECOVERY": "recovery_frame_count",
 }
 
 
@@ -48,12 +61,53 @@ def issue_source_metric(issue: TechniqueIssue) -> str:
 class EvidencePackager:
     """Coaching-facing evidence assembler (pure data merge)."""
 
+    def package_from_final(
+        self,
+        state: FinalAnalysisState,
+        *,
+        metrics: Any,
+        technique: TechniqueEvaluation,
+        keyframes: KeyframeSet,
+        snapshot: AnalysisSnapshot,
+        stroke_type: str = STROKE_TYPE_SMASH,
+        handedness: str | None = None,
+        evidence_version: str = EVIDENCE_VERSION,
+    ) -> EvidencePackage:
+        """Build evidence exclusively from ``FinalAnalysisState`` + derived artifacts."""
+        validate_object_provenance(metrics, snapshot)
+        validate_object_provenance(technique, snapshot)
+        validate_object_provenance(keyframes, snapshot)
+        contact_idx = getattr(metrics, "estimated_contact_frame_index", None)
+        if contact_idx != state.contact.frame_index:
+            raise ValueError(
+                "Stroke metrics contact must match FinalAnalysisState.contact."
+            )
+        package = self.package(
+            video_quality=state.video_quality,
+            phases=state.phases,
+            metrics=metrics,
+            technique=technique,
+            keyframes=keyframes,
+            stroke_type=stroke_type,
+            handedness=handedness,
+            evidence_version=evidence_version,
+            contact=state.contact,
+        )
+        apply_provenance(
+            package,
+            snapshot,
+            artifact_schema_version=evidence_version,
+        )
+        validate_object_provenance(package, snapshot)
+        return package
+
+
     def package(
         self,
         *,
         video_quality: VideoQualityReport,
         phases: PhaseSequence,
-        metrics: StrokeMetrics,
+        metrics: Any,
         technique: TechniqueEvaluation,
         keyframes: KeyframeSet,
         stroke_type: str = STROKE_TYPE_SMASH,
@@ -93,11 +147,33 @@ class EvidencePackager:
         )
 
 
+def package_evidence_from_final(
+    state: FinalAnalysisState,
+    *,
+    metrics: Any,
+    technique: TechniqueEvaluation,
+    keyframes: KeyframeSet,
+    snapshot: AnalysisSnapshot,
+    stroke_type: str = STROKE_TYPE_SMASH,
+    handedness: str | None = None,
+) -> EvidencePackage:
+    """Module-level convenience wrapper around ``EvidencePackager.package_from_final``."""
+    return EvidencePackager().package_from_final(
+        state,
+        metrics=metrics,
+        technique=technique,
+        keyframes=keyframes,
+        snapshot=snapshot,
+        stroke_type=stroke_type,
+        handedness=handedness,
+    )
+
+
 def package_evidence(
     *,
     video_quality: VideoQualityReport,
     phases: PhaseSequence,
-    metrics: StrokeMetrics,
+    metrics: Any,
     technique: TechniqueEvaluation,
     keyframes: KeyframeSet,
     stroke_type: str = STROKE_TYPE_SMASH,

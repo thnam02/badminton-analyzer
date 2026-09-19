@@ -10,6 +10,7 @@ from app.cv.layers.hud_layer import render_hud_layer
 from app.cv.layers.joint_metrics_layer import render_joint_metrics_layer
 from app.cv.layers.skeleton_layer import render_skeleton_layer
 from app.schemas.angles import AngleFrame
+from app.schemas.final_analysis import FinalAnalysisState
 from app.schemas.motion import MotionFrame
 from app.schemas.phases import SmashPhase
 from app.schemas.pose import PoseFrame
@@ -39,6 +40,35 @@ class AnnotationRenderer:
     @property
     def muscle_overlay_enabled(self) -> bool:
         return self._muscle_overlay
+
+    def render_from_final(
+        self,
+        frame: np.ndarray,
+        state: FinalAnalysisState,
+        *,
+        frame_index: int,
+        pose_by_index: dict[int, PoseFrame] | None = None,
+        angle_by_index: dict[int, AngleFrame] | None = None,
+        motion_by_index: dict[int, MotionFrame] | None = None,
+    ) -> np.ndarray:
+        """Render one frame using only pose / angles / motion / phases from final state."""
+        pose_map = pose_by_index or {
+            f.frame_index: f for f in state.smoothed_pose.frames
+        }
+        angle_map = angle_by_index or {
+            f.frame_index: f for f in state.angles.frames
+        }
+        motion_map = motion_by_index or {
+            f.frame_index: f for f in state.motion.frames
+        }
+        return self.render(
+            frame,
+            pose_frame=pose_map.get(frame_index),
+            angle_frame=angle_map.get(frame_index),
+            motion_frame=motion_map.get(frame_index),
+            phase=state.phases.phase_at(frame_index),
+            frame_index=frame_index,
+        )
 
     def render(
         self,

@@ -1,0 +1,106 @@
+{
+  "reference_dataset_schema_version": "1.0.0",
+  "reference_data_protocol_version": "1.0.0",
+  "notes": "Example reference-data manifest (forehand smash). Schema/metadata only — no reference ranges.",
+  "protocol": {
+    "protocol_version": "1.0.0",
+    "stroke_type": "FOREHAND_SMASH",
+    "allowed_camera_views": ["rear_45", "side_45"],
+    "min_fps": 30.0,
+    "preferred_fps": 60.0,
+    "min_resolution": { "width": 1280, "height": 720 },
+    "preferred_resolution": { "width": 1920, "height": 1080 },
+    "require_full_body_visibility": true,
+    "collection_targets": {
+      "players_per_skill_group": { "min": 5, "max": 10 },
+      "valid_smashes_per_player": { "min": 15, "max": 30 },
+      "repeated_smashes_per_session": { "min": 15, "preferred": 25 }
+    },
+    "handedness_vocabulary": ["LEFT", "RIGHT"],
+    "skill_group_vocabulary": ["beginner", "intermediate", "advanced_expert"],
+    "notes": "Initial reference-data protocol: forehand smash only, one controlled camera view per session (rear_45 or side_45). Does not define numeric technique reference ranges."
+  },
+  "players": [
+    {
+      "anonymized_player_id": "p_anon_001",
+      "skill_group": "intermediate",
+      "handedness": "RIGHT",
+      "notes": "Club player; consent recorded offline"
+    },
+    {
+      "anonymized_player_id": "p_anon_002",
+      "skill_group": "beginner",
+      "handedness": "LEFT"
+    }
+  ],
+  "sessions": [
+    {
+      "session_id": "sess_2026_09_01_a",
+      "anonymized_player_id": "p_anon_001",
+      "recorded_at": "2026-09-01T10:00:00+10:00",
+      "planned_smash_count": 25,
+      "venue_code": "court_A",
+      "camera_setup": {
+        "camera_view": "side_45",
+        "fps": 60.0,
+        "width": 1920,
+        "height": 1080,
+        "protocol_version": "1.0.0",
+        "camera_height_m": 1.4,
+        "distance_to_player_m": 6.0
+      }
+    }
+  ],
+  "strokes": [
+    {
+      "stroke_id": "p_anon_001_sess_a_t03",
+      "session_id": "sess_2026_09_01_a",
+      "anonymized_player_id": "p_anon_001",
+      "stroke_type": "FOREHAND_SMASH",
+      "take_number": 3,
+      "camera_view": "side_45",
+      "fps": 60.0,
+      "width": 1920,
+      "height": 1080,
+      "handedness": "RIGHT",
+      "skill_group": "intermediate",
+      "acceptance_status": "accepted",
+      "acceptance_failures": [],
+      "source_video_path": "raw/p_anon_001/sess_a/take_03.mp4",
+      "artifact_refs": {
+        "analysis_id": "0e56fd441b984c2685bae4bb743bdb2d",
+        "dataset_export_path": "outputs/0e56fd441b984c2685bae4bb743bdb2d_dataset.json",
+        "pose_json_path": "outputs/0e56fd441b984c2685bae4bb743bdb2d_pose.json",
+        "overlay_video_path": "outputs/0e56fd441b984c2685bae4bb743bdb2d_pose.mp4"
+      }
+    },
+    {
+      "stroke_id": "p_anon_001_sess_a_t04",
+      "session_id": "sess_2026_09_01_a",
+      "anonymized_player_id": "p_anon_001",
+      "stroke_type": "FOREHAND_SMASH",
+      "take_number": 4,
+      "camera_view": "side_45",
+      "fps": 60.0,
+      "width": 1920,
+      "height": 1080,
+      "handedness": "RIGHT",
+      "skill_group": "intermediate",
+      "acceptance_status": "rejected",
+      "acceptance_failures": ["major_occlusion", "pose_coverage_below_threshold"],
+      "artifact_refs": {}
+    }
+  ],
+  "labels": [
+    {
+      "label_id": "label_p001_t03_coach_a",
+      "stroke_id": "p_anon_001_sess_a_t03",
+      "labeler_id": "coach_a",
+      "labeled_at": "2026-09-02T14:00:00+10:00",
+      "issue_labels": ["LOW_KNEE_CONTRIBUTION"],
+      "quality_tags": ["clean_contact", "usable_reference"],
+      "is_valid_reference_stroke": true,
+      "comments": "Good side-45 visibility; keep for future range fitting."
+    }
+  ]
+}

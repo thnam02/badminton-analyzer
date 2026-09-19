@@ -75,9 +75,17 @@ class CoachingReport:
         "Coaching layer explains deterministic evidence only; "
         "it must not recalculate biomechanics measurements."
     )
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        from app.schemas.provenance import provenance_fields_from_object
+
+        payload: dict[str, Any] = {
             "status": self.status,
             "summary": self.summary,
             "prioritized_issues": [i.to_dict() for i in self.prioritized_issues],
@@ -89,6 +97,8 @@ class CoachingReport:
             "video": self.video,
             "notes": self.notes,
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

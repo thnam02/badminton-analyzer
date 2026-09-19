@@ -1,0 +1,75 @@
+"""Forehand clear metrics schema (stroke-specific — not SmashMetrics)."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+
+@dataclass(slots=True)
+class ForehandClearMetrics:
+    """Phase-aware metrics for forehand clear technique evaluation (V1)."""
+
+    video: str
+    stroke_type: str = "FOREHAND_CLEAR"
+    estimated_contact_frame_index: int | None = None
+    estimated_contact_timestamp: float | None = None
+    phase_confidence: float = 0.0
+
+    # Preparation
+    preparation_elbow_angle_deg: float | None = None
+    preparation_knee_angle_deg: float | None = None
+
+    # Backswing / cocking
+    backswing_min_elbow_angle_deg: float | None = None
+    backswing_wrist_y_travel: float | None = None
+
+    # Acceleration
+    peak_elbow_omega: float | None = None
+    peak_wrist_speed: float | None = None
+    peak_elbow_omega_offset_frames: int | None = None
+    acceleration_phase_fraction: float | None = None
+
+    # Contact
+    contact_elbow_angle_deg: float | None = None
+    contact_knee_angle_deg: float | None = None
+    contact_shoulder_angle_deg: float | None = None
+    contact_wrist_y_normalized: float | None = None
+    contact_confidence: float = 0.0
+
+    # Follow-through
+    follow_through_speed_ratio: float | None = None
+    follow_through_frame_count: int | None = None
+    follow_through_wrist_y_travel: float | None = None
+
+    # Recovery
+    recovery_frame_count: int | None = None
+    recovery_duration_s: float | None = None
+
+    # Provenance
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        for key in (
+            "analysis_id",
+            "snapshot_id",
+            "fingerprint",
+            "snapshot_schema_version",
+            "artifact_schema_version",
+            "artifact_role",
+        ):
+            if not payload.get(key):
+                payload.pop(key, None)
+        return payload
+
+    def save_json(self, path: Path) -> Path:
+        path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
+        return path

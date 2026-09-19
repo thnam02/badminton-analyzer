@@ -23,6 +23,8 @@ from app.schemas.coaching import (
     Strength,
 )
 from app.schemas.evidence import EvidencePackage
+from app.schemas.final_analysis import FinalAnalysisState
+from app.schemas.provenance import AnalysisSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,52 @@ class CoachingParseError(RuntimeError):
 def is_coaching_configured() -> bool:
     """True when env enables coaching and an API key is present."""
     return bool(settings.openai_coaching_enabled and settings.openai_api_key.strip())
+
+
+def generate_coaching_report_from_final(
+    state: FinalAnalysisState,
+    evidence: EvidencePackage,
+    *,
+    snapshot: AnalysisSnapshot | None = None,
+    include_keyframes: bool = True,
+) -> CoachingReport:
+    """Generate coaching from evidence packaged against ``FinalAnalysisState``.
+
+    Does not change OpenAI behavior — only asserts contact/phase identity so
+    coaching cannot silently use a stale contact frame. When ``snapshot`` is
+    provided, the report is stamped with matching provenance.
+    """
+    if snapshot is not None:
+        from app.schemas.provenance import (
+            COACHING_ARTIFACT_SCHEMA_VERSION,
+            apply_provenance,
+            validate_object_provenance,
+        )
+
+        validate_object_provenance(evidence, snapshot)
+    if evidence.contact.frame_index != state.contact.frame_index:
+        raise ValueError(
+            "EvidencePackage contact must match FinalAnalysisState.contact; "
+            f"got evidence={evidence.contact.frame_index}, "
+            f"state={state.contact.frame_index}."
+        )
+    if evidence.contact.contact_type != state.contact.contact_type:
+        raise ValueError(
+            "EvidencePackage contact_type must match FinalAnalysisState.contact."
+        )
+    report = generate_coaching_report(
+        evidence,
+        include_keyframes=include_keyframes,
+    )
+    if snapshot is not None:
+        apply_provenance(
+            report,
+            snapshot,
+            artifact_schema_version=COACHING_ARTIFACT_SCHEMA_VERSION,
+        )
+        validate_object_provenance(report, snapshot)
+    return report
+
 
 
 def generate_coaching_report(

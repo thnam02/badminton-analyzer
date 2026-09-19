@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 
+from app.schemas.provenance import provenance_fields_from_object
+
+
 # Contact neighbor labels (not SmashPhase members).
 CONTACT_MINUS_2 = "CONTACT_MINUS_2"
 CONTACT_PLUS_2 = "CONTACT_PLUS_2"
@@ -42,19 +45,27 @@ class KeyframeSet:
         "Raw frames selected from PhaseSequence indices; "
         "no additional CV inference or OpenAI."
     )
+    analysis_id: str = ""
+    snapshot_id: str = ""
+    fingerprint: str = ""
+    snapshot_schema_version: str = ""
+    artifact_schema_version: str = ""
+    artifact_role: str = ""
 
     @property
     def count(self) -> int:
         return len(self.keyframes)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "video": self.video,
             "output_dir": self.output_dir,
             "count": self.count,
             "notes": self.notes,
             "keyframes": [kf.to_dict() for kf in self.keyframes],
         }
+        payload.update(provenance_fields_from_object(self))
+        return payload
 
     def save_json(self, path: Path) -> Path:
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")

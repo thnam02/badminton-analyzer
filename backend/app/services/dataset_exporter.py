@@ -17,6 +17,16 @@ from app.schemas.dataset import (
     blank_annotation_template,
     utc_now_iso,
 )
+from app.schemas.final_analysis import FinalAnalysisState
+from app.schemas.keyframes import KeyframeSet
+from app.schemas.provenance import (
+    AnalysisSnapshot,
+    apply_provenance,
+    validate_artifact_provenance,
+    validate_object_provenance,
+)
+from app.schemas.stroke_metrics import StrokeMetrics
+from app.schemas.technique import TechniqueEvaluation
 from app.services.video_service import (
     _artifact_base_stem,
     annotation_template_json_path_for,
@@ -28,6 +38,67 @@ logger = logging.getLogger(__name__)
 
 class DatasetExporter:
     """Build label-ready exports from on-disk (or in-memory) analysis JSON."""
+
+    def export_from_final(
+        self,
+        state: FinalAnalysisState,
+        *,
+        metrics: Any,
+        technique: TechniqueEvaluation,
+        keyframes: KeyframeSet,
+        snapshot: AnalysisSnapshot,
+        phases_json_path: Path | None = None,
+        metrics_json_path: Path | None = None,
+        contact_json_path: Path | None = None,
+        technique_json_path: Path | None = None,
+        keyframes_json_path: Path | None = None,
+        quality_json_path: Path | None = None,
+        evidence_json_path: Path | None = None,
+        pose_json_path: Path | None = None,
+        smoothed_pose_json_path: Path | None = None,
+        shuttle_json_path: Path | None = None,
+        racket_json_path: Path | None = None,
+        stroke_type: str = "SMASH",
+    ) -> tuple[Path, Path, DatasetExport]:
+        """Export using contact / phases / quality from ``FinalAnalysisState``."""
+        validate_object_provenance(metrics, snapshot)
+        validate_object_provenance(technique, snapshot)
+        validate_object_provenance(keyframes, snapshot)
+        validate_artifact_provenance(state.phases.to_dict(), snapshot)
+        validate_artifact_provenance(state.contact.to_dict(), snapshot)
+
+        dataset_path, template_path, export = self.export_analysis(
+            output_stem=state.output_path,
+            video_metadata={
+                "video": state.video,
+                "fps": state.video_fps,
+                "width": state.video_width,
+                "height": state.video_height,
+                "usable": state.video_quality.usable,
+                "analysis_confidence": state.video_quality.analysis_confidence,
+            },
+            phases=state.phases.to_dict(),
+            metrics=metrics.to_dict(),
+            contact=state.contact.to_dict(),
+            technique=technique.to_dict(),
+            keyframes=keyframes.to_dict(),
+            video_quality=state.video_quality.to_dict(),
+            phases_json_path=phases_json_path,
+            metrics_json_path=metrics_json_path,
+            contact_json_path=contact_json_path,
+            technique_json_path=technique_json_path,
+            keyframes_json_path=keyframes_json_path,
+            quality_json_path=quality_json_path,
+            evidence_json_path=evidence_json_path,
+            pose_json_path=pose_json_path,
+            smoothed_pose_json_path=smoothed_pose_json_path,
+            shuttle_json_path=shuttle_json_path,
+            racket_json_path=racket_json_path,
+            stroke_type=stroke_type,
+            snapshot=snapshot,
+        )
+        return dataset_path, template_path, export
+
 
     def export_analysis(
         self,
@@ -52,9 +123,15 @@ class DatasetExporter:
         shuttle_json_path: Path | None = None,
         racket_json_path: Path | None = None,
         stroke_type: str = "SMASH",
+        snapshot: AnalysisSnapshot | None = None,
     ) -> tuple[Path, Path, DatasetExport]:
         """Write ``{id}_dataset.json`` + annotation template; return paths + object."""
         analysis_id = _artifact_base_stem(output_stem)
+        if snapshot is not None and snapshot.analysis_id != analysis_id:
+            raise ValueError(
+                f"snapshot.analysis_id={snapshot.analysis_id!r} does not match "
+                f"output stem analysis_id={analysis_id!r}."
+            )
         phases_data = phases or _load_json(phases_json_path) or {}
         metrics_data = metrics or _load_json(metrics_json_path) or {}
         contact_data = contact or _load_json(contact_json_path) or {}
@@ -126,6 +203,14 @@ class DatasetExporter:
             annotation_template=template,
         )
 
+        if snapshot is not None:
+            apply_provenance(
+                export,
+                snapshot,
+                artifact_schema_version=DATASET_EXPORT_VERSION,
+            )
+            validate_object_provenance(export, snapshot)
+
         dataset_path = dataset_export_json_path_for(output_stem)
         template_path = annotation_template_json_path_for(output_stem)
         export.save_json(dataset_path)
@@ -134,8 +219,9 @@ class DatasetExporter:
             encoding="utf-8",
         )
         logger.info(
-            "Dataset export written analysis_id=%s path=%s",
+            "Dataset export written analysis_id=%s snapshot_id=%s path=%s",
             analysis_id,
+            getattr(export, "snapshot_id", "") or None,
             dataset_path.name,
         )
         return dataset_path, template_path, export
