@@ -306,9 +306,11 @@ def _axis_score(
 
 
 def _normalize_stroke(value: str | None) -> str:
-    raw = (value or "SMASH").strip().upper()
-    if raw in {"FOREHAND_SMASH", "SMASH_FOREHAND"}:
+    raw = (value or "SMASH").strip().upper().replace("-", "_").replace(" ", "_")
+    if raw in {"FOREHAND_SMASH", "SMASH_FOREHAND", "SMASH"}:
         return "SMASH"
+    if raw in {"FOREHAND_CLEAR", "CLEAR_FOREHAND", "CLEAR"}:
+        return "FOREHAND_CLEAR"
     return raw
 
 

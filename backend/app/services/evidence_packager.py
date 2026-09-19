@@ -21,12 +21,12 @@ from app.schemas.provenance import (
     apply_provenance,
     validate_object_provenance,
 )
-from app.schemas.stroke_metrics import StrokeMetrics
 from app.schemas.technique import TechniqueEvaluation, TechniqueIssue
 from app.schemas.video_quality import VideoQualityReport
+from typing import Any
 
 
-# Maps technique issue codes → StrokeMetrics field that supplies measured_value.
+# Maps technique issue codes → metrics field that supplies measured_value.
 # Timing / follow-through may use a secondary field when the primary is absent;
 # ``issue_source_metric`` resolves that from the issue unit.
 ISSUE_PRIMARY_METRIC: dict[str, str] = {
@@ -36,6 +36,12 @@ ISSUE_PRIMARY_METRIC: dict[str, str] = {
     "POOR_ARM_ACCELERATION_TIMING": "peak_elbow_omega_offset_frames",
     "LOW_CONTACT_POSTURE": "contact_wrist_y_normalized",
     "WEAK_FOLLOW_THROUGH": "follow_through_speed_ratio",
+    # Forehand clear
+    "LIMITED_CLEAR_PREPARATION": "preparation_elbow_angle_deg",
+    "INSUFFICIENT_ARM_EXTENSION": "contact_elbow_angle_deg",
+    "POOR_PROXIMAL_DISTAL_TIMING": "peak_elbow_omega_offset_frames",
+    "RESTRICTED_FOLLOW_THROUGH": "follow_through_speed_ratio",
+    "SLOW_RECOVERY": "recovery_frame_count",
 }
 
 
@@ -59,7 +65,7 @@ class EvidencePackager:
         self,
         state: FinalAnalysisState,
         *,
-        metrics: StrokeMetrics,
+        metrics: Any,
         technique: TechniqueEvaluation,
         keyframes: KeyframeSet,
         snapshot: AnalysisSnapshot,
@@ -71,9 +77,10 @@ class EvidencePackager:
         validate_object_provenance(metrics, snapshot)
         validate_object_provenance(technique, snapshot)
         validate_object_provenance(keyframes, snapshot)
-        if metrics.estimated_contact_frame_index != state.contact.frame_index:
+        contact_idx = getattr(metrics, "estimated_contact_frame_index", None)
+        if contact_idx != state.contact.frame_index:
             raise ValueError(
-                "StrokeMetrics contact must match FinalAnalysisState.contact."
+                "Stroke metrics contact must match FinalAnalysisState.contact."
             )
         package = self.package(
             video_quality=state.video_quality,
@@ -100,7 +107,7 @@ class EvidencePackager:
         *,
         video_quality: VideoQualityReport,
         phases: PhaseSequence,
-        metrics: StrokeMetrics,
+        metrics: Any,
         technique: TechniqueEvaluation,
         keyframes: KeyframeSet,
         stroke_type: str = STROKE_TYPE_SMASH,
@@ -143,7 +150,7 @@ class EvidencePackager:
 def package_evidence_from_final(
     state: FinalAnalysisState,
     *,
-    metrics: StrokeMetrics,
+    metrics: Any,
     technique: TechniqueEvaluation,
     keyframes: KeyframeSet,
     snapshot: AnalysisSnapshot,
@@ -166,7 +173,7 @@ def package_evidence(
     *,
     video_quality: VideoQualityReport,
     phases: PhaseSequence,
-    metrics: StrokeMetrics,
+    metrics: Any,
     technique: TechniqueEvaluation,
     keyframes: KeyframeSet,
     stroke_type: str = STROKE_TYPE_SMASH,

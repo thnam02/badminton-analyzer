@@ -142,15 +142,26 @@ def test_all_issue_measured_values_match_stroke_metrics() -> None:
 
 
 def test_issue_source_metric_covers_known_codes() -> None:
+    from app.schemas.clear_metrics import ForehandClearMetrics
     from app.schemas.phases import SmashPhase
     from app.schemas.stroke_metrics import StrokeMetrics
     from app.schemas.technique import IssueSeverity, ReferenceRange
 
+    clear_codes = {
+        "LIMITED_CLEAR_PREPARATION",
+        "INSUFFICIENT_ARM_EXTENSION",
+        "POOR_PROXIMAL_DISTAL_TIMING",
+        "RESTRICTED_FOLLOW_THROUGH",
+        "SLOW_RECOVERY",
+    }
+
     for code, field_name in ISSUE_PRIMARY_METRIC.items():
         if code == "POOR_ARM_ACCELERATION_TIMING":
             unit = "frames"
-        elif code == "WEAK_FOLLOW_THROUGH":
+        elif code in {"WEAK_FOLLOW_THROUGH", "RESTRICTED_FOLLOW_THROUGH"}:
             unit = "speed_ratio"
+        elif code == "SLOW_RECOVERY":
+            unit = "frames"
         else:
             unit = "deg"
         issue = TechniqueIssue(
@@ -164,7 +175,8 @@ def test_issue_source_metric_covers_known_codes() -> None:
         )
         resolved = issue_source_metric(issue)
         assert resolved == field_name
-        assert hasattr(StrokeMetrics, resolved)
+        schema = ForehandClearMetrics if code in clear_codes else StrokeMetrics
+        assert hasattr(schema, resolved)
 
 
 def test_handedness_passed_through_when_available() -> None:

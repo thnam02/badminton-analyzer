@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from app.ai.coaching import generate_coaching_report_from_final
 from app.config import settings
@@ -13,10 +14,7 @@ from app.processing.angles import compute_angle_sequence
 from app.processing.contact_resolver import resolve_contact
 from app.processing.keyframes import extract_keyframes_from_final
 from app.processing.motion import compute_motion_derivatives
-from app.processing.phases import detect_smash_phases
-from app.processing.stroke_metrics import compute_stroke_metrics_from_final
-from app.processing.technique import evaluate_technique_from_final
-from app.processing.technique_config import reference_profile_from_settings
+from app.processing.strokes import get_stroke_analyzer
 from app.processing.temporal import preprocess_pose_sequence
 from app.processing.video_quality import assess_video_quality
 from app.schemas.analysis_snapshot import build_analysis_snapshot
@@ -55,7 +53,7 @@ from app.schemas.provenance import (
 )
 from app.schemas.racket import RacketTrajectory
 from app.schemas.shuttle import ShuttleTrajectory
-from app.schemas.stroke_metrics import StrokeMetrics
+from app.schemas.stroke_types import StrokeType, normalize_stroke_type
 from app.schemas.technique import TechniqueEvaluation
 from app.schemas.video_quality import VideoQualityReport
 from app.services.evidence_packager import evidence_packager
@@ -102,6 +100,7 @@ class PoseKinematics:
     video_fps: float
     video_width: int
     video_height: int
+    stroke_type: StrokeType = StrokeType.FOREHAND_SMASH
 
 
 @dataclass(slots=True)
@@ -110,7 +109,7 @@ class FinalizedAnalysis:
 
     final_state: FinalAnalysisState
     snapshot: AnalysisSnapshot
-    stroke_metrics: StrokeMetrics
+    stroke_metrics: Any
     technique_evaluation: TechniqueEvaluation
     keyframe_set: KeyframeSet
     evidence_package: EvidencePackage
@@ -133,6 +132,7 @@ class FinalizedAnalysis:
     mesh_video_path: Path | None
     mesh_json_path: Path | None
     mesh_status: dict | None
+    stroke_type: StrokeType = StrokeType.FOREHAND_SMASH
 
 
 class PoseService:
@@ -149,8 +149,11 @@ class PoseService:
         self,
         input_path: Path,
         output_path: Path,
+        *,
+        stroke_type: str | StrokeType | None = None,
     ) -> PoseKinematics:
         """RTMPose → temporal → quality → angles/motion → initial phases → kinematic contact."""
+        analyzer = get_stroke_analyzer(stroke_type)
         estimator = self.estimator
         raw_sequence = PoseSequence(video=output_path.name)
         video_fps, video_width, video_height = probe_video_metadata(input_path)
@@ -191,7 +194,7 @@ class PoseService:
             angle_sequence,
             confidence_threshold=settings.pose_confidence_threshold,
         )
-        initial_phases = detect_smash_phases(
+        initial_phases = analyzer.detect_phases(
             smoothed_sequence,
             angle_sequence,
             motion_sequence,
@@ -210,6 +213,7 @@ class PoseService:
             video_fps=video_fps,
             video_width=video_width,
             video_height=video_height,
+            stroke_type=analyzer.stroke_type,
         )
 
     def finalize_analysis(
@@ -238,8 +242,9 @@ class PoseService:
             shuttle=shuttle,
             racket=racket,
         )
+        analyzer = get_stroke_analyzer(kinematics.stroke_type)
         if kinematics.kinematic_contact.kinematic_frame_index is not None:
-            final_phases = detect_smash_phases(
+            final_phases = analyzer.detect_phases(
                 kinematics.smoothed_sequence,
                 kinematics.angle_sequence,
                 kinematics.motion_sequence,
@@ -304,19 +309,16 @@ class PoseService:
         )
 
         # All downstream stages read contact/phases only via final_state.
-        stroke_metrics = compute_stroke_metrics_from_final(final_state)
+        stroke_metrics = analyzer.extract_metrics(final_state)
         apply_provenance(
             stroke_metrics,
             snapshot,
             artifact_schema_version=STROKE_METRICS_ARTIFACT_SCHEMA_VERSION,
         )
-        technique_evaluation = evaluate_technique_from_final(
+        technique_evaluation = analyzer.evaluate(
             final_state,
             stroke_metrics,
-            profile=reference_profile_from_settings(
-                stroke_type="SMASH",
-                handedness=None,
-            ),
+            quality_confidence=float(final_state.video_quality.analysis_confidence),
         )
         apply_provenance(
             technique_evaluation,
@@ -339,6 +341,7 @@ class PoseService:
             technique=technique_evaluation,
             keyframes=keyframe_set,
             snapshot=snapshot,
+            stroke_type=analyzer.stroke_type.value,
             handedness=None,
         )
         coaching_report = generate_coaching_report_from_final(
@@ -500,6 +503,7 @@ class PoseService:
             snapshot=snapshot,
             stroke_metrics=stroke_metrics,
             technique_evaluation=technique_evaluation,
+            stroke_type=analyzer.stroke_type,
             keyframe_set=keyframe_set,
             evidence_package=evidence_package,
             coaching_report=coaching_report,
@@ -532,6 +536,7 @@ class PoseService:
         mesh_overlay: bool | None = None,
         shuttle: ShuttleTrajectory | None = None,
         racket: RacketTrajectory | None = None,
+        stroke_type: str | StrokeType | None = None,
     ) -> FinalizedAnalysis:
         """Full pose pipeline with optional precomputed shuttle/racket trajectories.
 
@@ -539,7 +544,9 @@ class PoseService:
         independent async debug job after the annotated video is written.
         """
         del muscle_overlay  # retired path — ignored
-        kinematics = self.compute_pose_kinematics(input_path, output_path)
+        kinematics = self.compute_pose_kinematics(
+            input_path, output_path, stroke_type=stroke_type
+        )
         return self.finalize_analysis(
             kinematics,
             shuttle=shuttle,

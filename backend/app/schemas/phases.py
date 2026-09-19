@@ -12,12 +12,19 @@ from app.schemas.provenance import provenance_fields_from_object
 
 
 class SmashPhase(str, Enum):
+    """Stroke phase labels shared by smash and clear (V1 vocabulary)."""
+
     PREPARATION = "PREPARATION"
     BACKSWING = "BACKSWING"
     ACCELERATION = "ACCELERATION"
     # Peak wrist-speed anchor — not true shuttle/racket contact.
     ESTIMATED_CONTACT = "ESTIMATED_CONTACT"
     FOLLOW_THROUGH = "FOLLOW_THROUGH"
+    RECOVERY = "RECOVERY"
+
+
+# Generic alias for multi-stroke code paths.
+StrokePhase = SmashPhase
 
 
 @dataclass(slots=True)

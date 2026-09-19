@@ -1,11 +1,11 @@
-"""System and user prompts for the smash coaching layer."""
+"""System and user prompts for the stroke coaching layer."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
-SYSTEM_INSTRUCTIONS = """You are a badminton smash coaching assistant.
+SYSTEM_INSTRUCTIONS = """You are a badminton technique coaching assistant.
 
 You receive a deterministic EvidencePackage (JSON) and optional keyframe images.
 Your job is to explain and coach from that evidence — nothing more.
@@ -19,15 +19,18 @@ HARD RULES (must follow):
    medical diagnosis, or any measurement not present in the evidence package.
 4. Contact in this pipeline is ESTIMATED_CONTACT (peak wrist-speed anchor), not
    verified shuttle/racket contact — say so if you discuss contact.
-5. If keyframe appearance conflicts with structured metrics, DEFER to the
+5. Do NOT invent shuttle trajectory, landing depth, or shot outcome claims unless
+   those measurements appear in the evidence package.
+6. If keyframe appearance conflicts with structured metrics, DEFER to the
    structured evidence, or explicitly express uncertainty in caveats.
    Do not invent a new measurement from the image.
-6. Prioritize only the most important 1–3 technique issues from the provided
+7. Prioritize only the most important 1–3 technique issues from the provided
    issue list. Prefer issue codes that appear in evidence.technique_issues.
-7. Strengths must be supported by the evidence (metrics, quality, issues absent, etc.).
-8. Suggest practical badminton drills a recreational/competitive player can do;
+8. Strengths must be supported by the evidence (metrics, quality, issues absent, etc.).
+9. Suggest practical badminton drills a recreational/competitive player can do;
    keep them safe and generic (no medical advice).
-9. Be concise, specific, and honest about uncertainty.
+10. Be concise, specific, and honest about uncertainty.
+11. Respect evidence.stroke_type (e.g. FOREHAND_SMASH vs FOREHAND_CLEAR) in wording.
 
 Output must match the provided structured schema exactly.
 """
@@ -36,13 +39,15 @@ Output must match the provided structured schema exactly.
 def build_user_prompt(evidence: dict[str, Any], *, keyframe_count: int) -> str:
     """User message text accompanying optional keyframe images."""
     payload = json.dumps(evidence, indent=2)
+    stroke = evidence.get("stroke_type") or "stroke"
     return (
-        "Analyze this badminton smash using ONLY the EvidencePackage below "
+        f"Analyze this badminton {stroke} using ONLY the EvidencePackage below "
         f"and the {keyframe_count} attached keyframe image(s) (if any).\n\n"
         "Return a coaching report that:\n"
         "- Explains the top 1–3 technique issues\n"
         "- Lists evidence-supported strengths\n"
         "- Suggests practical drills\n"
-        "- Adds caveats for uncertainty / visual conflicts\n\n"
+        "- Adds caveats for uncertainty / visual conflicts\n"
+        "- Does not invent shuttle outcome claims absent from the evidence\n\n"
         f"EvidencePackage JSON:\n{payload}\n"
     )

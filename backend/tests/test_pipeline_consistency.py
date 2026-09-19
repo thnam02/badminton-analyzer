@@ -419,7 +419,7 @@ def test_e2e_invalid_phase_contact_mismatch_fails_before_artifacts(
         return real_detect(pose, angles, motion)
 
     monkeypatch.setattr(
-        "app.services.pose_service.detect_smash_phases", _ignore_forced
+        "app.processing.strokes.smash.analyzer.detect_smash_phases", _ignore_forced
     )
 
     output = kin.output_path

@@ -43,7 +43,7 @@ class DatasetExporter:
         self,
         state: FinalAnalysisState,
         *,
-        metrics: StrokeMetrics,
+        metrics: Any,
         technique: TechniqueEvaluation,
         keyframes: KeyframeSet,
         snapshot: AnalysisSnapshot,

@@ -10,7 +10,13 @@ from app.services.mesh_jobs import read_status
 from app.services.pose_service import pose_service
 from app.services.racket_service import racket_service
 from app.services.shuttle_service import shuttle_service
-from app.services.video_service import new_output_path, new_upload_path
+from app.services.video_service import (
+    _artifact_base_stem,
+    new_output_path,
+    new_upload_path,
+)
+from app.services.analysis_aggregator import register_completed_analysis
+from app.schemas.stroke_types import UnsupportedStrokeError, normalize_stroke_type
 
 router = APIRouter(tags=["analyze"])
 
@@ -43,6 +49,10 @@ async def analyze(
     mesh_overlay: bool | None = Query(default=None),
     shuttle_track: bool | None = Query(default=None),
     racket_track: bool | None = Query(default=None),
+    stroke_type: str = Query(
+        default="FOREHAND_SMASH",
+        description="FOREHAND_SMASH or FOREHAND_CLEAR (user-selected)",
+    ),
 ) -> dict[str, str]:
     """Run analysis with measurements finalized before evidence/coaching/render/export.
 
@@ -96,13 +106,22 @@ async def analyze(
     )
 
     try:
+        stroke = normalize_stroke_type(stroke_type)
+    except UnsupportedStrokeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
         contents = await video.read()
         if not contents:
             raise HTTPException(status_code=400, detail="Empty upload")
         upload_path.write_bytes(contents)
 
         # 1–6: pose measurements through kinematic contact candidate only.
-        kinematics = pose_service.compute_pose_kinematics(upload_path, output_path)
+        kinematics = pose_service.compute_pose_kinematics(
+            upload_path,
+            output_path,
+            stroke_type=stroke,
+        )
 
         # 7–8: optional tracks (before ContactResolver / any downstream artifacts).
         shuttle_traj = None
@@ -162,6 +181,7 @@ async def analyze(
                 smoothed_pose_json_path=smoothed_json_path,
                 shuttle_json_path=shuttle_json_path,
                 racket_json_path=racket_json_path,
+                stroke_type=stroke.value,
             )
         )
     except HTTPException:
@@ -231,10 +251,10 @@ async def analyze(
         raise HTTPException(
             status_code=500, detail="Processing produced no evidence JSON"
         )
-    if coaching_json_path is None or not coaching_json_path.exists():
-        raise HTTPException(
-            status_code=500, detail="Processing produced no coaching JSON"
-        )
+    # Coaching is optional for product UX — deterministic analysis can stand alone.
+    coaching_available = (
+        coaching_json_path is not None and coaching_json_path.exists()
+    )
     if contact_json_path is None or not contact_json_path.exists():
         raise HTTPException(
             status_code=500, detail="Processing produced no contact JSON"
@@ -271,6 +291,10 @@ async def analyze(
             )
 
     payload: dict[str, str] = {
+        "analysis_id": _artifact_base_stem(video_path),
+        "stroke_type": stroke.value,
+        "analysis_status": "COMPLETE",
+        "coaching_status": "COMPLETE" if coaching_available else "UNAVAILABLE",
         "output_path": str(video_path),
         "video_url": f"/outputs/{video_path.name}",
         "pose_json_path": str(raw_json_path),
@@ -293,8 +317,6 @@ async def analyze(
         "keyframes_json_url": f"/outputs/{keyframes_json_path.name}",
         "evidence_json_path": str(evidence_json_path),
         "evidence_json_url": f"/outputs/{evidence_json_path.name}",
-        "coaching_json_path": str(coaching_json_path),
-        "coaching_json_url": f"/outputs/{coaching_json_path.name}",
         "contact_json_path": str(contact_json_path),
         "contact_json_url": f"/outputs/{contact_json_path.name}",
         "dataset_json_path": str(dataset_json_path),
@@ -308,6 +330,9 @@ async def analyze(
         "shuttle_track": str(run_shuttle).lower(),
         "racket_track": str(run_racket).lower(),
     }
+    if coaching_available and coaching_json_path is not None:
+        payload["coaching_json_path"] = str(coaching_json_path)
+        payload["coaching_json_url"] = f"/outputs/{coaching_json_path.name}"
     if run_shuttle and shuttle_json_path is not None and shuttle_debug_path is not None:
         payload["shuttle_json_path"] = str(shuttle_json_path)
         payload["shuttle_json_url"] = f"/outputs/{shuttle_json_path.name}"
@@ -335,4 +360,12 @@ async def analyze(
     if mesh_json_path is not None and "mesh_json_url" not in payload:
         payload["mesh_json_path"] = str(mesh_json_path)
         payload["mesh_json_url"] = f"/outputs/{mesh_json_path.name}"
+
+    try:
+        register_completed_analysis(
+            payload["analysis_id"],
+            mesh_status=payload.get("mesh_status"),
+        )
+    except Exception:  # noqa: BLE001 — history index must not fail analyze
+        pass
     return payload
