@@ -1,0 +1,20 @@
+{
+  "coaching_validation_annotation_version": "1.0.0",
+  "notes": "Example coach review ratings (1–5) for generated CoachingReports.",
+  "reviews": [
+    {
+      "analysis_id": "example_analysis_01",
+      "video": "example_smash.mp4",
+      "analysis_confidence": 0.85,
+      "priority_agreement": 4,
+      "technical_correctness": 5,
+      "actionability": 4,
+      "clarity": 5,
+      "drill_relevance": 4,
+      "expected_priority_issue_codes": [
+        "INSUFFICIENT_ELBOW_EXTENSION"
+      ],
+      "comments": "Priorities match; drills are practical."
+    }
+  ]
+}
