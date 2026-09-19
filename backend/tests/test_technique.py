@@ -111,8 +111,11 @@ def _profile_with(**metric_overrides: MetricReference) -> ReferenceProfile:
         stroke_type=base.stroke_type,
         handedness=base.handedness,
         camera_view=base.camera_view,
+        skill_level=base.skill_level,
         metrics=metrics,
         provisional=True,
+        profile_version=base.profile_version,
+        source=base.source,
         notes=base.notes,
     )
 
@@ -283,7 +286,12 @@ def test_weak_follow_through_detected() -> None:
 def test_technique_issue_has_required_fields() -> None:
     _, _, _, _, metrics = _build_pipeline()
     metrics.contact_elbow_angle_deg = 100.0
-    evaluation = evaluate_technique(metrics, profile=build_provisional_smash_right_side())
+    metrics.phase_confidence = 0.9
+    evaluation = evaluate_technique(
+        metrics,
+        profile=build_provisional_smash_right_side(),
+        quality_confidence=0.9,
+    )
     assert evaluation.issues
     issue = evaluation.issues[0]
     assert issue.code
@@ -293,5 +301,9 @@ def test_technique_issue_has_required_fields() -> None:
     assert issue.reference_range.min is not None or issue.reference_range.max is not None
     assert issue.unit
     assert issue.reference_profile_id
+    assert issue.metric_name
+    assert issue.rule_version
+    assert issue.decision_mode == "reference_distribution"
+    assert issue.measurement_confidence > 0
     assert issue.reference_evidence is not None
     assert "provisional" in issue.to_dict()["reference_evidence"]

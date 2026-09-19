@@ -35,11 +35,13 @@ def reference_profile_from_settings(
     stroke_type: str = "SMASH",
     handedness: str | None = None,
     camera_view: str | None = None,
+    skill_level: str | None = None,
 ) -> ReferenceProfile:
     """Resolve the active provisional/default reference profile."""
     return select_reference_profile(
         stroke_type=stroke_type,
         handedness=handedness,
         camera_view=camera_view or settings.technique_default_camera_view or None,
+        skill_level=skill_level,
         profile_id=settings.technique_reference_profile_id or None,
     )

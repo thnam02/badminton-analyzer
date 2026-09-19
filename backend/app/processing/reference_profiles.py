@@ -1,7 +1,9 @@
-"""Provisional reference profiles and selection helpers.
+"""Provisional reference profiles (catalog when no built C2 profile is supplied).
 
 Values are sample/configuration placeholders clearly marked provisional —
-not scientifically validated population norms.
+not scientifically validated population norms. Selection lives in
+``reference_profile_selector``. Hard-coded setting thresholds are applied by the
+technique evaluator only when selection returns ``match_level=none``.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ def _metric(
     direction: str,
     sample_count: int = 24,
     confidence: float = 0.35,
+    std: float | None = None,
 ) -> MetricReference:
     return MetricReference(
         metric_id=metric_id,
@@ -42,16 +45,13 @@ def _metric(
         confidence=confidence,
         provisional=True,
         direction=direction,
+        std=std,
+        mean=median,
     )
 
 
 def build_provisional_smash_right_side() -> ReferenceProfile:
-    """Default smash / right / side-view provisional profile.
-
-    Percentile bounds are seeded from prior TechniqueRuleConfig defaults so
-    existing issue behaviour stays comparable while moving thresholds out of
-    rule code.
-    """
+    """Default smash / right / side-view provisional profile."""
     metrics = {
         METRIC_CONTACT_ELBOW: _metric(
             METRIC_CONTACT_ELBOW,
@@ -60,6 +60,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=float(settings.technique_min_contact_elbow_angle_deg),
             upper=180.0,
             direction="higher_is_better",
+            std=8.0,
         ),
         METRIC_PREP_KNEE: _metric(
             METRIC_PREP_KNEE,
@@ -68,6 +69,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=120.0,
             upper=155.0,
             direction="in_range",
+            std=10.0,
         ),
         METRIC_KNEE_CONTRIBUTION: _metric(
             METRIC_KNEE_CONTRIBUTION,
@@ -76,6 +78,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=float(settings.technique_min_knee_contribution_deg),
             upper=40.0,
             direction="higher_is_better",
+            std=6.0,
         ),
         METRIC_ELBOW_PEAK_TIMING: _metric(
             METRIC_ELBOW_PEAK_TIMING,
@@ -84,6 +87,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=float(settings.technique_min_peak_elbow_omega_lead_frames),
             upper=float(settings.technique_max_peak_elbow_omega_lead_frames),
             direction="in_range",
+            std=2.0,
         ),
         METRIC_FOLLOW_THROUGH_RETENTION: _metric(
             METRIC_FOLLOW_THROUGH_RETENTION,
@@ -92,6 +96,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=float(settings.technique_min_follow_through_speed_ratio),
             upper=1.0,
             direction="higher_is_better",
+            std=0.12,
         ),
         METRIC_ACCEL_FRACTION: _metric(
             METRIC_ACCEL_FRACTION,
@@ -100,6 +105,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=float(settings.technique_min_acceleration_phase_fraction),
             upper=0.55,
             direction="higher_is_better",
+            std=0.08,
         ),
         METRIC_CONTACT_WRIST_Y: _metric(
             METRIC_CONTACT_WRIST_Y,
@@ -108,6 +114,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=0.15,
             upper=float(settings.technique_max_contact_wrist_y_normalized),
             direction="lower_is_better",
+            std=0.08,
         ),
         METRIC_FOLLOW_THROUGH_FRAMES: _metric(
             METRIC_FOLLOW_THROUGH_FRAMES,
@@ -116,6 +123,7 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
             lower=float(settings.technique_min_follow_through_frames),
             upper=20.0,
             direction="higher_is_better",
+            std=3.0,
         ),
     }
     return ReferenceProfile(
@@ -123,8 +131,11 @@ def build_provisional_smash_right_side() -> ReferenceProfile:
         stroke_type="SMASH",
         handedness="RIGHT",
         camera_view="SIDE",
+        skill_level=None,
         metrics=metrics,
         provisional=True,
+        profile_version="provisional_v1",
+        source="provisional_catalog",
         notes=(
             "Provisional smash reference (right-handed, side view) seeded from "
             "configuration/sample defaults — not scientifically validated."
@@ -140,8 +151,11 @@ def build_provisional_smash_any() -> ReferenceProfile:
         stroke_type="SMASH",
         handedness=None,
         camera_view=None,
+        skill_level=None,
         metrics=dict(base.metrics),
         provisional=True,
+        profile_version="provisional_v1",
+        source="provisional_catalog",
         notes=(
             "Provisional smash fallback profile (any handedness/view) — "
             "not scientifically validated."
@@ -157,8 +171,11 @@ def build_provisional_smash_left_side() -> ReferenceProfile:
         stroke_type="SMASH",
         handedness="LEFT",
         camera_view="SIDE",
+        skill_level=None,
         metrics=dict(base.metrics),
         provisional=True,
+        profile_version="provisional_v1",
+        source="provisional_catalog",
         notes=(
             "Provisional smash reference (left-handed, side view) — "
             "not scientifically validated; metrics mirrored from right-side sample."
@@ -179,65 +196,20 @@ def select_reference_profile(
     stroke_type: str = "SMASH",
     handedness: str | None = None,
     camera_view: str | None = None,
+    skill_level: str | None = None,
     profile_id: str | None = None,
     profiles: list[ReferenceProfile] | None = None,
 ) -> ReferenceProfile:
-    """Select the best matching reference profile.
-
-    Preference order:
-    1. Explicit ``profile_id``
-    2. Exact stroke + handedness + camera_view
-    3. stroke + handedness + any camera
-    4. stroke + any handedness + camera_view
-    5. stroke + any + any
-    6. First profile with matching stroke_type
-    """
-    catalog = list(profiles) if profiles is not None else default_reference_profiles()
-    if not catalog:
-        raise ValueError("No reference profiles available")
-
-    if profile_id:
-        for profile in catalog:
-            if profile.profile_id == profile_id:
-                return profile
-        raise KeyError(f"Unknown reference profile_id '{profile_id}'")
-
-    stroke = stroke_type.upper()
-    hand = handedness.upper() if handedness else None
-    view = camera_view.upper() if camera_view else None
-
-    def _score(profile: ReferenceProfile) -> tuple[int, int, int]:
-        if profile.stroke_type.upper() != stroke:
-            return (-1, -1, -1)
-        hand_score = (
-            2
-            if hand is not None and profile.handedness == hand
-            else 1
-            if profile.handedness is None
-            else 0
-            if hand is None
-            else -1
-        )
-        view_score = (
-            2
-            if view is not None and profile.camera_view == view
-            else 1
-            if profile.camera_view is None
-            else 0
-            if view is None
-            else -1
-        )
-        if hand_score < 0 or view_score < 0:
-            return (-1, -1, -1)
-        return (1, hand_score, view_score)
-
-    ranked = sorted(
-        (( _score(p), p) for p in catalog),
-        key=lambda item: item[0],
-        reverse=True,
+    """Backward-compatible entry point — delegates to ReferenceProfileSelector."""
+    from app.processing.reference_profile_selector import (
+        select_reference_profile as _select,
     )
-    best_score, best = ranked[0]
-    if best_score[0] < 0:
-        # No stroke match — return first catalog entry as last resort.
-        return catalog[0]
-    return best
+
+    return _select(
+        stroke_type=stroke_type,
+        handedness=handedness,
+        camera_view=camera_view,
+        skill_level=skill_level,
+        profile_id=profile_id,
+        profiles=profiles,
+    )

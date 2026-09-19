@@ -102,3 +102,16 @@ fitting.
 
 Future work can derive provisional reference ranges **from accepted strokes
 only**, under a separate versioned fitting step.
+
+## Building empirical reference profiles
+
+Offline builder: `backend/app/processing/reference_profile_builder.py`.
+
+- Inputs: `ReferenceDatasetManifest` (accepted `StrokeSample`s) + finalized
+  analysis metrics (`pose_metrics` / `*_stroke_metrics.json`, optional motion peaks)
+- Groups by `stroke_type`, `handedness`, `camera_view`, `skill_level`
+- Emits versioned `BuiltReferenceProfile` / `BuiltReferenceProfileSet`
+  (`reference_profile_build_version`) with per-metric median/mean/std,
+  P10/P25/P75/P90, IQR, missing-rate, and quality summary
+- Optionally drops low-quality analyses via `VideoQualityReport`
+- Does **not** wire into production technique rules yet

@@ -6,12 +6,14 @@ from app.processing.reference_profiles import (
     default_reference_profiles,
     select_reference_profile,
 )
+from app.processing.reference_profile_selector import ReferenceProfileSelector
 from app.processing.stroke_metrics import compute_stroke_metrics, extract_stroke_metrics
 from app.processing.technique import evaluate_technique
 from app.processing.temporal import preprocess_pose_sequence
 from app.processing.video_quality import assess_video_quality
 
 __all__ = [
+    "ReferenceProfileSelector",
     "assess_video_quality",
     "compute_angle_sequence",
     "compute_motion_derivatives",

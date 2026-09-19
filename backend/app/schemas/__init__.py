@@ -56,6 +56,12 @@ from app.schemas.reference import (
     ReferenceEvidence,
     ReferenceProfile,
 )
+from app.schemas.built_reference import (
+    REFERENCE_PROFILE_BUILD_VERSION,
+    BuiltReferenceProfile,
+    BuiltReferenceProfileSet,
+    MetricDistribution,
+)
 from app.schemas.reference_dataset import (
     REFERENCE_DATA_PROTOCOL_VERSION,
     REFERENCE_DATASET_SCHEMA_VERSION,
@@ -141,8 +147,12 @@ __all__ = [
     "QualityScore",
     "REFERENCE_DATA_PROTOCOL_VERSION",
     "REFERENCE_DATASET_SCHEMA_VERSION",
+    "REFERENCE_PROFILE_BUILD_VERSION",
     "AnalysisArtifactRefs",
+    "BuiltReferenceProfile",
+    "BuiltReferenceProfileSet",
     "CameraSetup",
+    "MetricDistribution",
     "Player",
     "RecordingProtocolSpec",
     "RecordingSession",
